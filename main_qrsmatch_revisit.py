@@ -1,6 +1,6 @@
 import sys
 
-running_on_arc = False
+running_on_arc = True
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
@@ -57,7 +57,7 @@ def main():
         inferences_folder = "Inferences_qrs_validation_local"
 
         bench_type = "ctrl"
-        n_tries, n_processors, save_best_every_x = 10, 1, 1
+        n_tries, n_processors, save_best_every_x = 128, 3, 1
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []
         discrepancy_name = "calc_discrepancy_separate_scaling"  # calc_discrepancy_separate_scaling for oxdataset
@@ -72,7 +72,7 @@ def main():
     dx, mesh_type = 2000, ""
     n_iterations, percent_cutoff = 1500, 87.5  # % accepted per iteration
     iter_dt_s, qrs_safety_s = 0.002, 0.02
-    plot, use_fibers, target_clinical, use_best_guess, return_activation_times = 1, 0, 1, 0, 1
+    plot, use_fibers, use_best_guess, return_activation_times = 0, 0, 0, 1
     min_n_root_nodes, max_n_root_nodes, root_nodes_dist_apart_um = 6, 10, 5000  # root nodes
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
