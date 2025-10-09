@@ -1,0 +1,87 @@
+import argparse
+import numpy as np
+import os
+
+
+def linear_interpolation(x1, y1, x2, y2, x):
+    m = (y2 - y1) / (x2 - x1)  # Slope
+    return y1 + m * (x - x1)
+
+
+def find_files(directory, prefix):
+    """Find files in a directory starting with a given prefix.
+
+    Args:
+        directory (str): Path to the directory to search in.
+        prefix (str): Filename prefix to filter files.
+
+    Returns:
+        list of str: Filenames in the directory that start with the prefix.
+    """
+    return [file for file in os.listdir(directory) if file.startswith(prefix)]
+
+
+def linear_interpolation_arrays(xs, ys, x):
+    if len(xs) != len(ys):
+        raise ValueError("Length of xs and ys must be the same.")
+    if not (min(xs) <= x <= max(xs)):
+        raise ValueError("x is out of bounds of the provided xs.")
+
+    # Find the interval [x1, x2] that contains x
+    for i in range(len(xs) - 1):
+        if xs[i] <= x <= xs[i + 1]:
+            return linear_interpolation(xs[i], ys[i], xs[i + 1], ys[i + 1], x)
+
+    raise ValueError("Failed interpolation")
+
+
+def parse_args(arg_names):
+    parser = argparse.ArgumentParser()
+    for name in arg_names:
+        parser.add_argument(f'--{name}', type=str, required=True)
+    args = parser.parse_args()
+    return args
+
+
+def safe_float(val):
+    """Safely convert a string to a float.
+
+    Args:
+        val (str or any): Value to convert to float.
+
+    Returns:
+        float: Converted float value, or np.nan if conversion fails.
+    """
+    try:
+        return float(val.strip())
+    except (ValueError, TypeError, AttributeError):
+        return np.nan
+
+
+def handle_preexisting_path(path, remove_old):
+    """Detect and optionally remove an existing file path.
+
+    Args:
+        path (str): The file path to check.
+        remove_old (bool): Whether to remove the existing file if it exists.
+    """
+    if os.path.exists(path):
+        if remove_old:
+            os.remove(path)
+        else:
+            raise Exception("Alg file already exists. Set remove_old=True or delete it.")
+    if os.path.exists(path):
+        raise Exception("Alg file already exists, remove_old seems to have failed")
+
+
+def calc_dist_sq(x_a, y_a, z_a, x_b, y_b, z_b):
+    """Calculate squared Euclidean distance between two 3D points.
+
+    Args:
+        x_a, y_a, z_a (float): Coordinates of the first point.
+        x_b, y_b, z_b (float): Coordinates of the second point.
+
+    Returns:
+        float: Squared Euclidean distance between the two points.
+    """
+    return (x_a - x_b) ** 2 + (y_a - y_b) ** 2 + (z_a - z_b) ** 2
