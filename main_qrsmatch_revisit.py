@@ -54,7 +54,7 @@ def main():
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
         dataset_name = "simulated_truths"
         patient_id, bench_dx = "DTI003", 500
-        inferences_folder = "Inferences_qrs_local"
+        inferences_folder = "Inferences_qrs_validation_local"
 
         bench_type = "ctrl"
         n_tries, n_processors, save_best_every_x = 10, 1, 1
@@ -74,10 +74,7 @@ def main():
     iter_dt_s, qrs_safety_s = 0.002, 0.02
     plot, use_fibers, target_clinical, use_best_guess, return_activation_times = 1, 0, 1, 0, 1
     min_n_root_nodes, max_n_root_nodes, root_nodes_dist_apart_um = 6, 10, 5000  # root nodes
-    v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
-    v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
 
-    # TODO TODO TODO remove
     v_endo_min, v_endo_max, v_endo_diff = 70, 70, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 50, 50, 10  # possible v_myo range (cm/s)
 
