@@ -85,3 +85,27 @@ def calc_dist_sq(x_a, y_a, z_a, x_b, y_b, z_b):
         float: Squared Euclidean distance between the two points.
     """
     return (x_a - x_b) ** 2 + (y_a - y_b) ** 2 + (z_a - z_b) ** 2
+
+
+def find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name):
+    """Find the LV/RV threshold mesh filename used (LV/RV discerned with manual thresholding)
+
+    Args:
+        mesh_dir (str): Directory containing mesh files.
+        patient_id (str): Identifier for the patient.
+        dx (str): spatial discretisation
+        seg_name (str): Name of the processed mesh type
+
+    Returns:
+        str: Filename of the matching `.alg` file.
+
+    Raises:
+        Exception: If zero or multiple matching files are found.
+    """
+    prefix = f"{patient_id}_{dx}_{seg_name}"
+    filenames = [f for f in os.listdir(mesh_dir) if (f.startswith(prefix) and f.endswith(".alg"))]
+
+    if len(filenames) == 1:
+        return filenames[0]
+    else:
+        raise Exception(f"Filenames: {filenames} failed to find lvrv threshold in use in {mesh_dir}")

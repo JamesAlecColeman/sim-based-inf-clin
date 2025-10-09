@@ -1065,10 +1065,16 @@ def setup_run_dir(main_dir, inferences_folder, benchmark_id, run_id, patient_id,
     if mother_data_folder is not None:
         mother_dir = f"{main_dir}/{inferences_folder}/{benchmark_id}/{mother_data_folder}"
 
-        shutil.copy(f"{mother_dir}/{benchmark_id}_bestqrsparams{misc_suffix}.npy",
-                    f"{run_dir}/{benchmark_id}_bestqrsparams.npy")
-        shutil.copy(f"{mother_dir}/{patient_id}_{dx}_activation_times{misc_suffix}.alg",
-                    f"{run_dir}/{patient_id}_{dx}_activation_times.alg")
+        if dataset_name == "oxdataset":
+            shutil.copy(f"{mother_dir}/{benchmark_id}_bestqrsparams{misc_suffix}.npy",
+                        f"{run_dir}/{benchmark_id}_bestqrsparams.npy")
+            shutil.copy(f"{mother_dir}/{patient_id}_{dx}_activation_times{misc_suffix}.alg",
+                        f"{run_dir}/{patient_id}_{dx}_activation_times.alg")
+        elif dataset_name == "simulated_truths":
+            shutil.copy(f"{mother_dir}/{patient_id}_500_ctrl_bestqrsparams{misc_suffix}.npy",
+                        f"{run_dir}/{benchmark_id}_bestqrsparams.npy")
+            shutil.copy(f"{mother_dir}/{patient_id}_{dx}_activation_times{misc_suffix}.alg",
+                        f"{run_dir}/{patient_id}_{dx}_activation_times.alg")
 
         # Old code used for copying angle_rot-specific activation times and qrsparams
         """if not varying_angle:  # Then can use old activation times and params before we described angle rot

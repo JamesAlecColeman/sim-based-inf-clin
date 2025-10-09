@@ -1,6 +1,6 @@
 import sys
 
-running_on_arc = False
+running_on_arc = True
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
@@ -28,7 +28,7 @@ def main():
                  "dataset_name"]
 
     if running_on_arc:  # ARC run setup
-        args = utils.parse_args(arg_names)
+        args = utils2.parse_args(arg_names)
 
         main_dir = "/data/coml-cardinal/scat8499/Monoscription"
 
@@ -58,11 +58,11 @@ def main():
     else:  # Local run setup
         import addcopyfighandler
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-        dataset_name = "oxdataset"
-        patient_id, bench_dx = "DTI001", 500
-        inferences_folder = "Inferences_twave_oxdataset_local"
+        dataset_name = "simulated_truths"
+        patient_id, bench_dx = "DTI003", 500
+        inferences_folder = "Inferences_twave_validation_local"
 
-        bench_type = "hcm"
+        bench_type = "hcmbig"
         n_tries, n_processors, save_best_every_x, lambda_reg = 32, 6, 1, 300.0
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []  # 4, 5, 6, 7, 8, 9 is V1-V6
@@ -96,7 +96,7 @@ def main():
         # Load alg old
         seg_name = "rvseg"
         mesh_dir = f"{main_dir}/Meshes_{dx}"
-        mesh_filename = utils.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
+        mesh_filename = utils2.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
         alg = alg_utils2.read_alg_mesh(f"{mesh_dir}/{mesh_filename}")
         trans = alg[10]  # 0: endo, 1: epi
         apexb = alg[14]

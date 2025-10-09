@@ -12,8 +12,9 @@ import qrs_matching2 as qrsm2
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_local", 1, 1
-oxdataset = True
+inferences_folder, repol, save_analysis = "Inferences_qrs_validation", 0, 1
+dataset_name = "simulated_truths"
+oxdataset = False
 patient_id_select, run_id_select = None, None
 patient_id_skip = None
 stop_thresh, force_iter_final = 0.00002, None #"max" #"max"  #"max" #"max"  #"max"# None
@@ -22,7 +23,7 @@ stop_thresh, force_iter_final = 0.00002, None #"max" #"max"  #"max" #"max"  #"ma
 plot_ecgs = 1
 cap_at_converged_iter = False  # Stops plots going all the way to 1000+ iterations
 
-compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
+compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
 iter_step, x_best = 100, 51  # View approximate convergence every iter_step iterations, just the x_best solutions
 
 i_iter_start = 0
@@ -145,6 +146,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         # Extract best model at final iteration
         best_x_times, best_x_reg_scores, best_x_leads, best_x_params = laf2.get_best_x_rts_or_ats(run_path, i_iter_final, 1, all_ids_and_diff_scores,
                                                                               repol=repol)
+
+        print(f"{best_x_params=}")
         activation_ms = None
 
         if repol:  # Load activation times from mother dir
@@ -427,14 +430,15 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 if glob_folder is not None:
                     np.save(f"{glob_pt_dir}/FINREG_{patient_id}_{run_id}.npy", final_pop_regs)
 
-            # Old alg
-            #alg = alg_utils.read_alg_mesh(f"{main_dir}/Meshes_{coarse_dx}/{patient_id}_{coarse_dx}.alg")
 
             # Oxdataset alg
-            mesh_alg_name = f"{patient_id}_{coarse_dx}_fields.alg"
-            mesh_path = f"{main_dir}/Cache_oxdataset/out/{mesh_alg_name}"
-            alg = alg_utils2.read_alg_mesh(mesh_path)
-            alg = alg[:6]
+            if dataset_name == "oxdataset":
+                mesh_alg_name = f"{patient_id}_{coarse_dx}_fields.alg"
+                mesh_path = f"{main_dir}/Cache_oxdataset/out/{mesh_alg_name}"
+                alg = alg_utils2.read_alg_mesh(mesh_path)
+                alg = alg[:6]
+            elif dataset_name == "simulated_truths":
+                alg = alg_utils2.read_alg_mesh(f"{main_dir}/Meshes_{coarse_dx}/{patient_id}_{coarse_dx}.alg")
 
             if repol:
                 np.save(f"{analysis_dir}/{patient_id}_{run_id}_leads_selected_qrs.npy", leads_selected_qrs)
