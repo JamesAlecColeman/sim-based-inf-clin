@@ -17,7 +17,7 @@ import log_inference2 as log
 from scipy.sparse.csgraph import dijkstra
 import ecg2
 import twave_matching2 as twm2
-import utils
+import utils2
 
 
 def main():
@@ -63,7 +63,7 @@ def main():
         inferences_folder = "Inferences_twave_oxdataset_local"
 
         bench_type = "hcm"
-        n_tries, n_processors, save_best_every_x, lambda_reg = 256, 6, 1, 300.0
+        n_tries, n_processors, save_best_every_x, lambda_reg = 32, 6, 1, 300.0
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []  # 4, 5, 6, 7, 8, 9 is V1-V6
 
