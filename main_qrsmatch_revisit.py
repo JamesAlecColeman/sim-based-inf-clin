@@ -24,7 +24,8 @@ import concurrent.futures
 def main():
     runtime_start = time.time()
     arg_names = ["benchmark_id", "n_processors", "n_tries", "inferences_folder", "angle_rot_deg", "dataset_name",
-                 "axis_name", "elec_rad_translation_um", "elec_idxs_to_translate", "discrepancy_name"]
+                 "axis_name", "elec_rad_translation_um", "elec_idxs_to_translate", "discrepancy_name",
+                 "stop_thresh"]
 
     if running_on_arc:  # Setup arguments as in ARC run
         args = utils2.parse_args(arg_names)
@@ -37,6 +38,7 @@ def main():
         angle_rot_deg = float(args.angle_rot_deg)
         discrepancy_name = args.discrepancy_name
         dataset_name = args.dataset_name
+        stop_thresh = float(args.stop_thresh)
 
         if dataset_name == "oxdataset":
             patient_id = benchmark_id  # oxdataset without dx, mesh_type (i.e. for DTI4309_1)
@@ -55,6 +57,7 @@ def main():
         dataset_name = "simulated_truths"
         patient_id, bench_dx = "DTI003", 500
         inferences_folder = "Inferences_qrs_validation_local"
+        stop_thresh = 0.00002
 
         bench_type = "ctrl"
         n_tries, n_processors, save_best_every_x = 128, 3, 1
@@ -77,7 +80,7 @@ def main():
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
     log_every_x_iterations = 1
-    window_size, stop_thresh = 50, 0.00002  # stopping condition
+    window_size = 50
     ############################################# Best params ##########################################################
     params_best_guess = (85, 40), (911, 1092, 1652, 1660, 11504, 13627, 16022, 17508, 18137)
     #params_best_guess = np.load(f"{main_dir}/{inferences_folder}/{benchmark_id}_bestqrsparams.npy", allow_pickle=True)

@@ -25,7 +25,7 @@ def main():
 
     arg_names = ["benchmark_id", "lambda_reg", "seg_name", "n_processors", "n_tries", "inferences_folder",
                  "angle_rot_deg", "axis_name", "elec_rad_translation_um", "elec_idxs_to_translate",
-                 "dataset_name"]
+                 "dataset_name", "stop_thresh"]
 
     if running_on_arc:  # ARC run setup
         args = utils2.parse_args(arg_names)
@@ -38,6 +38,7 @@ def main():
         n_tries = int(args.n_tries)
         inferences_folder = args.inferences_folder
         dataset_name = args.dataset_name
+        stop_thresh = float(args.stop_thresh)
 
         if args.angle_rot_deg != "None":
             angle_rot_deg = float(args.angle_rot_deg)
@@ -61,6 +62,7 @@ def main():
         dataset_name = "simulated_truths"
         patient_id, bench_dx = "DTI003", 500
         inferences_folder = "Inferences_twave_validation_local"
+        stop_thresh = 0.00002
 
         bench_type = "hcmbig"
         n_tries, n_processors, save_best_every_x, lambda_reg = 32, 6, 1, 300.0
@@ -82,7 +84,7 @@ def main():
     plot, use_fibers, use_best_guess = 0, 0, 0
     no_seg_dir = f"{main_dir}/no_segments"
     log_every_x_iterations = 1
-    window_size, stop_thresh = 50, 0.00002  # stopping condition
+    window_size = 50
     ap_table_name = "ap_table_2d_extended"
     min_possible_apd90_ms, max_possible_apd90_ms, apd90_snapping_ms = 150, 450, 1
     mother_data_folder = "mother_data"

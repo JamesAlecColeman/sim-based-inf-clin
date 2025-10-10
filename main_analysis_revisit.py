@@ -12,7 +12,7 @@ import qrs_matching2 as qrsm2
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_qrs_validation", 0, 1
+inferences_folder, repol, save_analysis = "Inferences_twave_validation", 1, 1
 dataset_name = "simulated_truths"
 oxdataset = False
 patient_id_select, run_id_select = None, None
@@ -89,6 +89,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             patient_id = target
         else:
             patient_id, fine_dx, mesh_type = target_fields[0], target_fields[1], target_fields[2]
+            benchmark_id = f"{patient_id}_{fine_dx}_{mesh_type}"
 
     n_runs = len(runs_in_targets[target])
 
@@ -327,7 +328,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         target_qrs_amps = {name: np.max(target_qrs_leads[name]) - np.min(target_qrs_leads[name]) for name in
                            target_qrs_leads}
 
-        if not repol and not oxdataset:  # Rescale target to make "I" 1mV and "V1" 1mV
+        #if not repol and not oxdataset:  # Rescale target to make "I" 1mV and "V1" 1mV
+        if not oxdataset:  # Rescale target to make "I" 1mV and "V1" 1mV
             target_qrs_leads = {name: target_qrs_leads[name] / (target_qrs_amps["I"] * units_2pt5uV_to_mV) if name in limb_leads else
                                 target_qrs_leads[name] for name in target_qrs_leads}
             target_qrs_leads = {
@@ -336,6 +338,11 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
         target_qrs_amp_ratios = {name: target_qrs_amps[name] / target_qrs_amps["I"] for name in
                            target_qrs_leads}
+
+        leads_target_justcompare = {name: leads_target_justcompare[name] / (target_qrs_amps["I"] * units_2pt5uV_to_mV) if name in limb_leads else
+                                leads_target_justcompare[name] / (target_qrs_amps["V1"] * units_2pt5uV_to_mV) for name in lead_names}
+
+
 
         #print(f"{target_qrs_amp_ratios=}")
 
@@ -398,7 +405,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             if repol:
                 final_apds_ms = final_times_ms - activation_ms
                 corr_apd_final = comp2.correlation(final_apds_ms, truth_apd90s_ms)
-                print(f"{corr_apd_final=}")
+                print(f"{round(corr_final, 3)=}")
+                print(f"{round(corr_apd_final, 3)=}")
 
         all_run_scores[f"{target}/{run_id}"] = min_reg_score
 
@@ -450,9 +458,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 final_apd90s_ms = best_x_times[0] - activation_ms
                 alg.append(final_apd90s_ms)
                 #alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_repol_times.alg", alg)
-                alg_utils2.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_repol_times_{run_id}.alg", alg)
+                alg_utils2.save_alg_mesh(f"{analysis_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
                 if glob_folder is not None:
-                    alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_repol_times_{run_id}.alg", alg)
+                    alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
 
                 alg = alg[:6]
                 alg.append(activation_ms)
