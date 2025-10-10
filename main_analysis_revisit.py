@@ -52,6 +52,9 @@ n_rows, n_cols = axs.shape
 
 all_run_scores, all_run_corrs, all_run_absdiffs = {}, {}, {}
 
+all_t_corrs = []
+all_apd_corrs = []
+
 n_targ = len(targets_in_inf_folder)
 for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferences_Folder/DTI003_500_ctrl"
     print(f"{target=}")
@@ -79,7 +82,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         if patient_id in patient_id_skip:
             continue
 
-    print(f"{target=}")
     target_fields = target.split("_")
 
     if len(target_fields) == 1:
@@ -401,10 +403,12 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             mean_absdiffs_final = comp2.abs_diffs(final_times_ms, truth_times_ms)[1]
             all_run_corrs[f"{target}/{run_id}"] = corr_final
             all_run_absdiffs[f"{target}/{run_id}"] = mean_absdiffs_final
+            all_t_corrs.append(corr_final)
 
             if repol:
                 final_apds_ms = final_times_ms - activation_ms
                 corr_apd_final = comp2.correlation(final_apds_ms, truth_apd90s_ms)
+                all_apd_corrs.append(corr_apd_final)
                 print(f"{round(corr_final, 3)=}")
                 print(f"{round(corr_apd_final, 3)=}")
 
@@ -540,6 +544,15 @@ for i, (title, data) in enumerate(data_sources):
 
 for j in range(len(data_sources), len(axs)):
     fig.delaxes(axs[j])
+
+print(f"{round(np.mean(all_t_corrs), 2)} {round(np.std(all_t_corrs), 2)}")
+print(f"{round(np.mean(all_apd_corrs), 2)} {round(np.std(all_apd_corrs), 2)}")
+
+all_t_corrs = [float(round(x, 2)) for x in all_t_corrs]
+all_apd_corrs = [float(round(x, 2)) for x in all_apd_corrs]
+
+print(f"{all_t_corrs=}")
+print(f"{all_apd_corrs=}")
 
 plt.tight_layout()
 plt.show()

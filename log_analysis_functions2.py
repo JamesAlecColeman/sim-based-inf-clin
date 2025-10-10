@@ -85,9 +85,9 @@ def get_max_i_iter(benchmark_run_dir, prefix = "all_params_and_diff_scores"):
         i_iter_maximum (int): Maximum iteration index found based on filenames
     """
     filenames = [f for f in os.listdir(benchmark_run_dir) if f.startswith(prefix)]
-    print(f"{benchmark_run_dir=}")
-    print(f"{filenames=}")
-    print(f"{prefix=}")
+    #print(f"{benchmark_run_dir=}")
+    #print(f"{filenames=}")
+    #print(f"{prefix=}")
 
     # In case we find 2 all_params_and_diff_scores (run ended mid-save)
     possible_iters = []
