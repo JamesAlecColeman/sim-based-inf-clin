@@ -18,6 +18,7 @@ from scipy.sparse.csgraph import dijkstra
 import ecg2
 import twave_matching2 as twm2
 import utils2
+import random
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
 
     arg_names = ["benchmark_id", "lambda_reg", "seg_name", "n_processors", "n_tries", "inferences_folder",
                  "angle_rot_deg", "axis_name", "elec_rad_translation_um", "elec_idxs_to_translate",
-                 "dataset_name", "stop_thresh"]
+                 "dataset_name", "stop_thresh", "random_seed"]
 
     if running_on_arc:  # ARC run setup
         args = utils2.parse_args(arg_names)
@@ -39,6 +40,7 @@ def main():
         inferences_folder = args.inferences_folder
         dataset_name = args.dataset_name
         stop_thresh = float(args.stop_thresh)
+        random_seed = int(args.random_seed)
 
         if args.angle_rot_deg != "None":
             angle_rot_deg = float(args.angle_rot_deg)
@@ -63,6 +65,7 @@ def main():
         patient_id, bench_dx = "DTI003", 500
         inferences_folder = "Inferences_twave_validation_local"
         stop_thresh = 0.00002
+        random_seed = 0
 
         bench_type = "hcmbig"
         n_tries, n_processors, save_best_every_x, lambda_reg = 32, 6, 1, 300.0
@@ -75,7 +78,7 @@ def main():
             benchmark_id = patient_id  # oxdataset
 
     ############################################# Key Parameters #######################################################
-    run_id = f"reg_{lambda_reg}_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_extended_floored_apexb_stopcondn"
+    run_id = f"reg_{lambda_reg}_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_extended_floored_apexb_stopcondn_{random_seed}"
     misc_suffix = f"_run_512_0.0_0.0_calc_discrepancy_separate_scaling"  # For loading activation times
     dx = 2000
     n_iterations, percent_cutoff = 1600, 87.5
@@ -93,6 +96,9 @@ def main():
     if use_best_guess:
        best_params_preload = np.load(f"{main_dir}/global_analysis/{patient_id}/1/{patient_id}_besttwaveparams_reg_300.0_512_0.0_0.0_extended_floored_apexb_stopcondn.npy", allow_pickle=True).item()
     ####################################################################################################################
+
+    random.seed(random_seed)
+    np.random.seed(random_seed)
 
     if dataset_name == "simulated_truths":
         # Load alg old

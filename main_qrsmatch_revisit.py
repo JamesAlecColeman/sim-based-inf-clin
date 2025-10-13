@@ -19,13 +19,14 @@ import ecg2
 import math
 import utils2
 import concurrent.futures
+import random
 
 
 def main():
     runtime_start = time.time()
     arg_names = ["benchmark_id", "n_processors", "n_tries", "inferences_folder", "angle_rot_deg", "dataset_name",
                  "axis_name", "elec_rad_translation_um", "elec_idxs_to_translate", "discrepancy_name",
-                 "stop_thresh"]
+                 "stop_thresh", "random_seed"]
 
     if running_on_arc:  # Setup arguments as in ARC run
         args = utils2.parse_args(arg_names)
@@ -39,6 +40,7 @@ def main():
         discrepancy_name = args.discrepancy_name
         dataset_name = args.dataset_name
         stop_thresh = float(args.stop_thresh)
+        random_seed = int(args.random_seed)
 
         if dataset_name == "oxdataset":
             patient_id = benchmark_id  # oxdataset without dx, mesh_type (i.e. for DTI4309_1)
@@ -58,6 +60,7 @@ def main():
         patient_id, bench_dx = "DTI003", 500
         inferences_folder = "Inferences_qrs_validation_local"
         stop_thresh = 0.00002
+        random_seed = 0
 
         bench_type = "ctrl"
         n_tries, n_processors, save_best_every_x = 128, 3, 1
@@ -71,7 +74,7 @@ def main():
             benchmark_id  = patient_id  # oxdataset
 
     ############################################# Key Parameters #######################################################
-    run_id = f"run_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_{discrepancy_name}"
+    run_id = f"run_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_{discrepancy_name}_{random_seed}"
     dx, mesh_type = 2000, ""
     n_iterations, percent_cutoff = 1500, 87.5  # % accepted per iteration
     iter_dt_s, qrs_safety_s = 0.002, 0.02
@@ -79,6 +82,11 @@ def main():
     min_n_root_nodes, max_n_root_nodes, root_nodes_dist_apart_um = 6, 10, 5000  # root nodes
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
+
+    # TODO TODO remove
+    v_endo_min, v_endo_max, v_endo_diff = 70, 80, 10  # possible v_endo range (cm/s)
+    v_myo_min, v_myo_max, v_myo_diff = 20, 30, 10  # possible v_myo range (cm/s)
+    # todo todo
     log_every_x_iterations = 1
     window_size = 50
     ############################################# Best params ##########################################################
@@ -86,6 +94,9 @@ def main():
     #params_best_guess = np.load(f"{main_dir}/{inferences_folder}/{benchmark_id}_bestqrsparams.npy", allow_pickle=True)
     params_best_guess = tuple(params_best_guess)
     ####################################################################################################################
+
+    random.seed(random_seed)
+    np.random.seed(random_seed)
 
     if dataset_name == "simulated_truths":  # Before oxdataset
         # Loading alg mesh and cached geometrical information

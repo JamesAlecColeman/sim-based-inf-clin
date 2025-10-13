@@ -12,12 +12,12 @@ import qrs_matching2 as qrsm2
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_twave_validation", 1, 1
+inferences_folder, repol, save_analysis = "Inferences_twave_validation_ntries", 1, 1
 dataset_name = "simulated_truths"
 oxdataset = False
-patient_id_select, run_id_select = None, None
+patient_id_select, run_id_select = None, "reg_300.0_1024_0.0_0.0_extended_floored_apexb_stopcondn"
 patient_id_skip = None
-stop_thresh, force_iter_final = 0.00002, None #"max" #"max"  #"max" #"max"  #"max"# None
+stop_thresh, force_iter_final = 0.000004, None #"max" #"max"  #"max" #"max"  #"max"# None
 #stop_thresh = 0.00002 is standard
 
 plot_ecgs = 1
@@ -147,7 +147,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
 
         # Extract best model at final iteration
-        best_x_times, best_x_reg_scores, best_x_leads, best_x_params = laf2.get_best_x_rts_or_ats(run_path, i_iter_final, 1, all_ids_and_diff_scores,
+        best_x_times_final_iter, best_x_reg_scores, best_x_leads_final_iter, best_x_params = laf2.get_best_x_rts_or_ats(run_path, i_iter_final, 1, all_ids_and_diff_scores,
                                                                               repol=repol)
 
         print(f"{best_x_params=}")
@@ -254,7 +254,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         times_s, times_target_s = np.load(f"{run_path}/times_s.npy"), np.load(f"{run_path}/times_target_s.npy")
         leads_target = np.load(f"{run_path}/leads_target.npy", allow_pickle=True).item()
 
-        leads_sim_best = best_x_leads[0]
+        leads_sim_best = best_x_leads_final_iter[0]
 
         if repol:
             # QRS amplitudes need calculating specifically from the QRS subset of the target leads
@@ -395,7 +395,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         #print(f"{best_x_params=}")
 
         #print(f"{best_x_params=}")
-        final_times_ms = best_x_times[0]
+        final_times_ms = best_x_times_final_iter[0]
 
         if compare_to_truth:
             corr_final = comp2.correlation(final_times_ms, truth_times_ms)
@@ -405,10 +405,12 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             all_run_absdiffs[f"{target}/{run_id}"] = mean_absdiffs_final
             all_t_corrs.append(corr_final)
 
+
             if repol:
                 final_apds_ms = final_times_ms - activation_ms
                 corr_apd_final = comp2.correlation(final_apds_ms, truth_apd90s_ms)
                 all_apd_corrs.append(corr_apd_final)
+
                 print(f"{round(corr_final, 3)=}")
                 print(f"{round(corr_apd_final, 3)=}")
 
