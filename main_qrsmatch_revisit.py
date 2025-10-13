@@ -84,8 +84,8 @@ def main():
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
 
     # TODO TODO remove
-    v_endo_min, v_endo_max, v_endo_diff = 70, 80, 10  # possible v_endo range (cm/s)
-    v_myo_min, v_myo_max, v_myo_diff = 20, 30, 10  # possible v_myo range (cm/s)
+    #v_endo_min, v_endo_max, v_endo_diff = 70, 80, 10  # possible v_endo range (cm/s)
+    #v_myo_min, v_myo_max, v_myo_diff = 20, 30, 10  # possible v_myo range (cm/s)
     # todo todo
     log_every_x_iterations = 1
     window_size = 50
