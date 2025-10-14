@@ -8,16 +8,23 @@ import compare_distributions2 as comp2
 from constants2 import *
 import random
 import qrs_matching2 as qrsm2
+import math
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_twave_validation_ntries", 1, 1
+inferences_folder, repol, save_analysis = "Inferences_qrs_validation_randomseed", 0, 1
 dataset_name = "simulated_truths"
 oxdataset = False
-patient_id_select, run_id_select = None, "reg_300.0_1024_0.0_0.0_extended_floored_apexb_stopcondn"
+
+patient_id_select = None
+run_id_select = [f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(10)]
+#run_id_select = [f"run_512_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in [6]]
+#run_id_select = [f"run_512_0.0_0.0_calc_discrepancy_separate_scaling"]
+
+
 patient_id_skip = None
-stop_thresh, force_iter_final = 0.000004, None #"max" #"max"  #"max" #"max"  #"max"# None
+stop_thresh, force_iter_final = 0.00002, None #"max" #"max"  #"max" #"max"  #"max"# None
 #stop_thresh = 0.00002 is standard
 
 plot_ecgs = 1
@@ -119,7 +126,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
     for i_run, run_id in enumerate(runs_in_targets[target]):  # E.g. now in ""DTI003_500_ctrl/runtime_512_-10.0""
         if run_id_select is not None:
-            if run_id != run_id_select:
+            if run_id not in run_id_select:
                 continue
 
         run_path = f"{inferences_path}/{target}/{run_id}"
@@ -134,7 +141,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         (i_iter_final, min_diff_score, median_diff_score, best_params_reg, min_reg_score, median_reg_score,
          abs_moving_avg) = laf2.apply_stop_condition(run_path, iterations, twave_diff_threshold=stop_thresh,
                                                     i_population_name="pop_ids_and_diffs/population_ids_and_diff_scores",
-                                                    repol=repol, force_iter_final=force_iter_final)
+                                                    repol=repol, force_iter_final=force_iter_final, plot=0)
 
         print(f"Stopped at iteration {i_iter_final} of {n_iterations} iterations")
         print(f"min diff, reg scores = {float(min_diff_score)}, {float(min_reg_score)}")
@@ -145,12 +152,36 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         final_pop_diffs = list(final_pop[1].values())
         final_pop_regs = list(final_pop[2].values())
 
+        log_inf_params = np.load(f"{run_path}/log_inf_params.npy", allow_pickle=True).item()
+        n_tries = log_inf_params["n_tries"]
+        percent_cutoff = log_inf_params["percent_cutoff"]
+        n_solutions_to_cluster = int(math.floor(n_tries * (percent_cutoff / 100)))  # Remove latest mutation fraction
 
-        # Extract best model at final iteration
-        best_x_times_final_iter, best_x_reg_scores, best_x_leads_final_iter, best_x_params = laf2.get_best_x_rts_or_ats(run_path, i_iter_final, 1, all_ids_and_diff_scores,
-                                                                              repol=repol)
+        best_x_times_final_iter, best_x_reg_scores_final_iter, best_x_leads_final_iter, best_x_params_final_iter = laf2.get_best_x_rts_or_ats(
+            run_path, i_iter_final, n_solutions_to_cluster, all_ids_and_diff_scores,
+            repol=repol)
 
-        print(f"{best_x_params=}")
+        a = 5
+
+        representatives, labels, mean_reg_scores, n_clusters = comp2.solution_clusters(best_x_times_final_iter,
+                                                                                       best_x_reg_scores_final_iter)
+        cluster_id_lowest_score = min(mean_reg_scores, key=mean_reg_scores.get)
+
+        final_soln_idx_from_best_x_times_final_iter = None
+        for cluster_id, medoid_soln_idx in representatives.items():
+            soln = best_x_times_final_iter[medoid_soln_idx]
+            if compare_to_truth:
+                if cluster_id == cluster_id_lowest_score:
+                    final_soln_idx_from_best_x_times_final_iter = medoid_soln_idx
+                    r_to_truth = comp2.correlation(soln, truth_times_ms)  # Compare each solution medoid to ground truth
+                    final_times_ms = soln  # Takes medoid of best scoring cluster at final iteration
+                    print(f"{r_to_truth=}")
+
+        final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
+        leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
+        # Decide on final times to use
+        # final_times_ms = best_x_times_final_iter[0]  # Takes best scoring model at final iteration
+
         activation_ms = None
 
         if repol:  # Load activation times from mother dir
@@ -253,8 +284,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         # Prepare to plot final ECG match to target
         times_s, times_target_s = np.load(f"{run_path}/times_s.npy"), np.load(f"{run_path}/times_target_s.npy")
         leads_target = np.load(f"{run_path}/leads_target.npy", allow_pickle=True).item()
-
-        leads_sim_best = best_x_leads_final_iter[0]
 
         if repol:
             # QRS amplitudes need calculating specifically from the QRS subset of the target leads
@@ -392,11 +421,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 best_x_ids_to_params[id] = ids_and_rts_and_ecgs_temp[id][2]
         best_x_params = [best_x_ids_to_params[id] for id in [best_params_reg]]
 
-        #print(f"{best_x_params=}")
-
-        #print(f"{best_x_params=}")
-        final_times_ms = best_x_times_final_iter[0]
-
         if compare_to_truth:
             corr_final = comp2.correlation(final_times_ms, truth_times_ms)
             print(f"{run_id} {corr_final=}")
@@ -474,18 +498,18 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 if glob_folder is not None:
                     alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
 
-                np.save(f"{analysis_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(best_x_params[0], dtype=object))
+                np.save(f"{analysis_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(final_params, dtype=object))
                 if glob_folder is not None:
-                    np.save(f"{glob_pt_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(best_x_params[0], dtype=object))
+                    np.save(f"{glob_pt_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(final_params, dtype=object))
 
             else:  # s conversion for activation
                 alg.append(final_times_ms / 1000)
                 alg_utils2.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
                 if glob_folder is not None:
                     alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
-                np.save(f"{analysis_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(best_x_params[0], dtype=object))
+                np.save(f"{analysis_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))
                 if glob_folder is not None:
-                    np.save(f"{glob_pt_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(best_x_params[0], dtype=object))
+                    np.save(f"{glob_pt_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))
 
 axs[0, 0].set_ylabel("Scores")
 axs[0, 0].legend(fontsize='x-small', borderpad=0.1, labelspacing=0.2, handletextpad=0.2, loc='best')

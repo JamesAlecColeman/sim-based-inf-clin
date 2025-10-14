@@ -1,6 +1,6 @@
 import sys
 
-running_on_arc = True
+running_on_arc = False
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
@@ -20,6 +20,8 @@ import math
 import utils2
 import concurrent.futures
 import random
+import compare_distributions2 as comp2
+from collections import Counter
 
 
 def main():
@@ -56,14 +58,14 @@ def main():
     else:  # Setup arguments as in local run
         import addcopyfighandler
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-        dataset_name = "simulated_truths"
+        dataset_name = "oxdataset"
         patient_id, bench_dx = "DTI003", 500
-        inferences_folder = "Inferences_qrs_validation_local"
+        inferences_folder = "Inferences_qrs_oxdataset_final_1024_local"
         stop_thresh = 0.00002
         random_seed = 0
 
         bench_type = "ctrl"
-        n_tries, n_processors, save_best_every_x = 128, 3, 1
+        n_tries, n_processors, save_best_every_x = 256, 4, 1
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []
         discrepancy_name = "calc_discrepancy_separate_scaling"  # calc_discrepancy_separate_scaling for oxdataset
@@ -76,17 +78,12 @@ def main():
     ############################################# Key Parameters #######################################################
     run_id = f"run_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_{discrepancy_name}_{random_seed}"
     dx, mesh_type = 2000, ""
-    n_iterations, percent_cutoff = 1500, 87.5  # % accepted per iteration
+    n_iterations, percent_cutoff = 2000, 87.5  # % accepted per iteration
     iter_dt_s, qrs_safety_s = 0.002, 0.02
     plot, use_fibers, use_best_guess, return_activation_times = 0, 0, 0, 1
     min_n_root_nodes, max_n_root_nodes, root_nodes_dist_apart_um = 6, 10, 5000  # root nodes
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
-
-    # TODO TODO remove
-    #v_endo_min, v_endo_max, v_endo_diff = 70, 80, 10  # possible v_endo range (cm/s)
-    #v_myo_min, v_myo_max, v_myo_diff = 20, 30, 10  # possible v_myo range (cm/s)
-    # todo todo
     log_every_x_iterations = 1
     window_size = 50
     ############################################# Best params ##########################################################
@@ -265,6 +262,9 @@ def main():
     mutated_params, all_ids_and_diff_scores = {}, {}
     runtimes, iter_median_scores = [], []
 
+    cluster_ct = []
+    iter_ct = []
+
     # Main iterative refinement of activation loop
     for iter_no in range(n_iterations):
         n_tries = len(current_iter_params)
@@ -280,6 +280,7 @@ def main():
                                                                     all_all_time_matrices, current_iter_params)
 
         population_ids_check, population_ids, ids_and_ecgs_ats_params = {}, {}, {}
+        population_activation_times = {}
 
         for i_try in tries:
             # Conversion of params simulated this iteration to ids and record that the param_id is in pop already
@@ -297,6 +298,7 @@ def main():
 
             store_activation_times = np.round(np.array(activation_times_s[i_try]) * 1000)  # s to ms
             store_activation_times_ms = np.array(store_activation_times, dtype=np.uint16)
+            population_activation_times[i_try] = store_activation_times_ms
 
             param_id = qrsm2.hash_qrs_param((v_params, tuple(root_indices)))
             all_ids_and_diff_scores[param_id] = [population_diff_scores[i_try], iter_no]
@@ -319,6 +321,9 @@ def main():
                 population_ids_check[param_id] = 1
                 new_key += 1
 
+        print(f"{len(population_diff_scores)=}")
+        print(f"{len(ids_and_ecgs_ats_params)=}")
+
         scores = list(population_diff_scores.values())
         iter_median_scores.append(np.median(scores))
 
@@ -327,6 +332,31 @@ def main():
         mutated_params = qrsm2.mutate_pop_params(keys_above, keys_below, population_params, alg, grid_dict,
                                                  candidate_root_node_indices, candidate_root_neighbours, v_endos, v_myos,
                                                  all_ids_and_diff_scores)
+
+        if iter_no > 0:  # Retrieval of activation times from last iteration
+            current_param_ids = {qrsm2.hash_qrs_param(params) for params in current_iter_params.values()}
+            prev_population_ids = {param_id: local_index for local_index, param_id in population_ids.items()}
+            next_index = max(population_activation_times.keys(), default=-1) + 1
+
+            for key, params in population_params.items():
+                param_id = qrsm2.hash_qrs_param(params)
+
+                if param_id in current_param_ids:  # Skip if model already in this iter
+                    continue
+                if param_id in prev_population_ids:  # Use activation times from previous iter
+                    prev_key = prev_population_ids[param_id]
+
+                    if prev_key in prev_population_activation_times:
+                        population_activation_times[next_index] = prev_population_activation_times[prev_key]
+                        next_index += 1
+                    else:
+                        pass
+                        ##
+                else:
+                    pass
+
+        prev_population_ids = population_ids.copy()
+        prev_population_activation_times = population_activation_times.copy()
 
         next_iter_params = {}
         # Check which new root indices + velocity params have been analysed before already + set up next iteration
@@ -367,6 +397,18 @@ def main():
         print(f"Best Params: {min_key}", flush=True)
         print(f"Unique Params Tested: {len(all_ids_and_diff_scores)}", flush=True)
         print(f"Min Score: {min_diff_score}", flush=True)
+
+        """
+        # Runtime solution clustering being investigated
+        pop_diffs = np.array(list(population_diff_scores.values()))
+        pop_ats = np.array(list(population_activation_times.values()))
+        representatives, labels, mean_reg_scores, n_clusters = comp2.solution_clusters(pop_ats, pop_diffs)
+        label_counts = Counter(labels)
+        cluster_sizes = {label: count for label, count in label_counts.items() if label != -1}
+        n_noise = label_counts.get(-1, 0)
+        print("Cluster sizes:", cluster_sizes)
+        print("Number of noise points:", n_noise)"""
+
 
         converged, i_iter_final = ecg2.runtime_stop_condn(iter_no, iter_median_scores, window_size, stop_thresh)
         if converged:

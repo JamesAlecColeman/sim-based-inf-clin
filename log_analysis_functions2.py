@@ -228,6 +228,7 @@ def apply_stop_condition(benchmark_run_dir, iterations, window_size=50, twave_di
         below_threshold_indices = np.where(abs_moving_avg < abs_thresh)[0]
 
         if plot:
+            plt.figure(1)
             plt.plot(abs_moving_avg, color="gray")
             plt.axhline(abs_thresh, color="red")
             plt.show()

@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.stats import spearmanr
+from sklearn.cluster import DBSCAN
+
 
 def abs_diffs(distr_a, distr_b):
     """Compute element-wise absolute differences and their mean.
@@ -81,3 +83,43 @@ def ssim_like(distr_a, distr_b, grid_near, xs, ys, zs):
 
     mean_ssim_like = np.average(all_ssim_like, weights=cells_per_score)  # Larger neighbourhoods -> higher weight
     return all_ssim_like, mean_ssim_like
+
+
+
+def get_rep_medoids(labels, dist_matrix):
+    unique_labels = np.unique(labels)
+    # Find representatives from each actual cluster, ignoring noise
+    representatives = {}
+    for cluster_label in unique_labels:
+        if cluster_label == -1:
+            continue  # skip noise
+        cluster_indices = np.where(labels == cluster_label)[0]
+        cluster_dist = dist_matrix[np.ix_(cluster_indices, cluster_indices)]
+        avg_dist = cluster_dist.mean(axis=1)
+        medoid_idx = cluster_indices[np.argmin(avg_dist)]
+        representatives[cluster_label] = medoid_idx
+    return representatives
+
+
+def solution_clusters(soln_times, scores, eps=0.25, min_samples=5):
+    soln_times = np.array(soln_times)
+    corr_matrix, _ = spearmanr(soln_times, axis=1)
+    dist_matrix = 1 - corr_matrix
+
+    # Use distance matrix directly
+    db = DBSCAN(metric='precomputed', eps=eps, min_samples=min_samples)
+    labels = db.fit_predict(dist_matrix)
+
+    unique_labels = np.unique(labels)
+    mean_reg_scores = {}
+
+    for cluster_label in unique_labels:
+        if cluster_label == -1:
+            continue  # skip noise
+        cluster_indices = np.where(labels == cluster_label)[0]
+        mean_reg_scores[cluster_label] = round(np.mean(scores[cluster_indices]), 5)
+
+    representatives = get_rep_medoids(labels, dist_matrix)
+    n_clusters = len(representatives)
+
+    return representatives, labels, mean_reg_scores, n_clusters
