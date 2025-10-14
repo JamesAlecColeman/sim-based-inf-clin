@@ -1,6 +1,6 @@
 import sys
 
-running_on_arc = False
+running_on_arc = True
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
