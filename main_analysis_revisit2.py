@@ -10,36 +10,84 @@ import random
 import qrs_matching2 as qrsm2
 import math
 
+
+def get_convergence_info(i_iter_final, repol, compare_to_truth, run_path, all_ids_and_diff_scores, x_best, iter_step):
+    # Find iteration-wise scores & comparisons to truths to plot convergence
+    iters, iter_scores, iter_median_corrs, iter_median_absdiffs = [], [], [], []
+    iter_median_corrs_apds, iter_median_absdiffs_apds = [], []
+    iter_best_x_params = []
+
+    corrs, mean_absdiffs, corrs_apds, mean_absdiffs_apds = None, None, None, None
+
+    for iter_no in range(i_iter_start, i_iter_final, iter_step):
+        best_x_times, best_x_reg_scores, best_x_leads, best_x_params = laf2.get_best_x_rts_or_ats(run_path, iter_no,
+                                                                                                  x_best,
+                                                                                                  all_ids_and_diff_scores,
+                                                                                                  repol=repol)
+        iter_best_x_params.append(best_x_params)
+
+        if compare_to_truth:
+            # Comparisons with ground truth for the best x solutions this iteration
+            corrs = [comp2.correlation(times, truth_times_ms) for times in best_x_times]
+            mean_absdiffs = [comp2.abs_diffs(times, truth_times_ms)[1] for times in best_x_times]
+
+        if repol:  # Calculate and compare APDs
+            best_x_apds = [repol_times - activation_ms for repol_times in best_x_times]
+            if compare_to_truth:
+                corrs_apds = [comp2.correlation(apds, truth_apd90s_ms) for apds in best_x_apds]
+                mean_absdiffs_apds = [comp2.abs_diffs(apds, truth_apd90s_ms)[1] for apds in best_x_apds]
+
+        # Store iteration-wise scores, correlations and absolute differences
+        iters.append(iter_no)
+        iter_scores.append(np.median(best_x_reg_scores))
+
+        if compare_to_truth:
+            iter_median_corrs.append(np.median(corrs))
+            iter_median_absdiffs.append(np.median(mean_absdiffs))
+
+            if repol:
+                iter_median_corrs_apds.append(np.median(corrs_apds))
+                iter_median_absdiffs_apds.append(np.median(mean_absdiffs_apds))
+    return (iters, iter_scores, iter_median_corrs, iter_median_absdiffs, iter_median_corrs_apds,
+            iter_median_absdiffs_apds, iter_best_x_params)
+
+
+
+def get_ground_truth(benchmark_alg_path, repol):
+    benchmark_alg = alg_utils2.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
+    truth_apd90s_ms, truth_activations_s, truth_repols_ms = benchmark_alg[6], benchmark_alg[7], benchmark_alg[8]
+    truth_activations_ms = truth_activations_s * 1000
+    truth_times_ms = truth_activations_ms if not repol else truth_repols_ms
+    return truth_times_ms, truth_apd90s_ms
+
+
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
 inferences_folder, repol, save_analysis = "Inferences_qrs_validation_final", 0, 1
 dataset_name = "simulated_truths"
-oxdataset = False
 
-patient_id_select = None
+patient_id_select = "DTI003"
 run_id_select = [f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
-#run_id_select = [f"run_512_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in [6]]
-#run_id_select = [f"run_512_0.0_0.0_calc_discrepancy_separate_scaling"]
-
 
 patient_id_skip = None
-stop_thresh, force_iter_final = 0.00002, None #"max" #"max"  #"max" #"max"  #"max"# None
-#stop_thresh = 0.00002 is standard
+stop_thresh, force_iter_final = 0.00002, None
+
+#select_activation = ""  # reg tuners
+select_activation = "_run_512_0.0_0.0_calc_discrepancy_separate_scaling" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
 
 plot_ecgs = 1
-cap_at_converged_iter = False  # Stops plots going all the way to 1000+ iterations
 
 compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
 iter_step, x_best = 100, 51  # View approximate convergence every iter_step iterations, just the x_best solutions
 
 i_iter_start = 0
-
-#select_activation = ""  # reg tuners
-select_activation = "_run_512_0.0_0.0_calc_discrepancy_separate_scaling" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
-
-
 coarse_dx = 2000
+
+if dataset_name == "oxdataset":
+    oxdataset = True
+elif dataset_name == "simulated_truths":
+    oxdataset = False
 
 inferences_path = f"{main_dir}/{inferences_folder}"
 targets_in_inf_folder, runs_in_targets = laf2.find_inference_runs(inferences_path)
@@ -58,19 +106,14 @@ fig, axs = plt.subplots(3, 2, figsize=(width_in, height_in), dpi=dpi)
 n_rows, n_cols = axs.shape
 
 all_run_scores, all_run_corrs, all_run_absdiffs = {}, {}, {}
-
-all_t_corrs = []
-all_apd_corrs = []
+all_t_corrs, all_apd_corrs = [], []
 
 n_targ = len(targets_in_inf_folder)
 for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferences_Folder/DTI003_500_ctrl"
     print(f"{target=}")
-    #print("=")
-    #print("=")
-    if patient_id_select is not None:
 
+    if patient_id_select is not None:  # then we are selecting a particular patient to analyse
         target_fields = target.split("_")
-
         if len(patient_id_select.split("_")) != 1:  # Handling patient_ids with 2 _s
             if target != patient_id_select:
                 continue
@@ -78,19 +121,14 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             if target_fields[0] != patient_id_select:
                 continue
 
-    if patient_id_skip is not None:
-        # Ensure skip list is iterable
+    if patient_id_skip is not None:  # then we are skipping one or more patients
         if isinstance(patient_id_skip, str):
             patient_id_skip = [patient_id_skip]
-
-        # Extract patient ID from target and skip if it's in the list
         patient_id = target  # Pay attention to this; this isn't always true
-        #patient_id = target.split("_")[0]
         if patient_id in patient_id_skip:
             continue
 
-    target_fields = target.split("_")
-
+    target_fields = target.split("_")  # handling target format inconsistency in oxdataset vs. simulated_truths
     if len(target_fields) == 1:
         patient_id = target_fields[0]
     else:
@@ -101,28 +139,19 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             benchmark_id = f"{patient_id}_{fine_dx}_{mesh_type}"
 
     n_runs = len(runs_in_targets[target])
-
     mother_data_path = f"{inferences_path}/{target}/mother_data"
     mother_data_dir = list(os.listdir(mother_data_path))
 
     truth_times_ms, truth_apd90s_ms = None, None
-
-    if compare_to_truth:
-        # Load ground truth activation/repolarisation sequence for this target
+    if compare_to_truth:  # Load ground truth activation/repolarisation sequence for this target
         benchmark_alg_path = f"{main_dir}/{benchmarks_folder}/{patient_id}_{coarse_dx}_{mesh_type}_APDs.alg"
-        benchmark_alg = alg_utils2.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
-        truth_apd90s_ms, truth_activations_s, truth_repols_ms = benchmark_alg[6], benchmark_alg[7], benchmark_alg[8]
-        truth_activations_ms =  truth_activations_s * 1000
+        truth_times_ms, truth_apd90s_ms = get_ground_truth(benchmark_alg_path, repol)
 
-        activation_times_count = 0
-        for filename in mother_data_dir:
-            if "activation_times" in filename and filename[-4:] == ".alg":
-                activation_times_count += 1
-
-        print(f"{activation_times_count} activation files in mother data, {n_runs=}")
-
-        truth_times_ms = truth_activations_ms if not repol else truth_repols_ms
-
+    activation_times_count = 0  # check how many activation times are in mother data for this target
+    for filename in mother_data_dir:
+        if "activation_times" in filename and filename[-4:] == ".alg":
+            activation_times_count += 1
+    print(f"{activation_times_count} activation files in mother data, {n_runs=}")
 
     for i_run, run_id in enumerate(runs_in_targets[target]):  # E.g. now in ""DTI003_500_ctrl/runtime_512_-10.0""
         if run_id_select is not None:
@@ -142,7 +171,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
          abs_moving_avg) = laf2.apply_stop_condition(run_path, iterations, twave_diff_threshold=stop_thresh,
                                                     i_population_name="pop_ids_and_diffs/population_ids_and_diff_scores",
                                                     repol=repol, force_iter_final=force_iter_final, plot=0)
-
         print(f"Stopped at iteration {i_iter_final} of {n_iterations} iterations")
         print(f"min diff, reg scores = {float(min_diff_score)}, {float(min_reg_score)}")
 
@@ -161,12 +189,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             run_path, i_iter_final, n_solutions_to_cluster, all_ids_and_diff_scores,
             repol=repol)
 
-        a = 5
-
         representatives, labels, mean_reg_scores, n_clusters = comp2.solution_clusters(best_x_times_final_iter,
                                                                                        best_x_reg_scores_final_iter)
         cluster_id_lowest_score = min(mean_reg_scores, key=mean_reg_scores.get)
-
         print(f"{n_clusters=}")
 
         final_soln_idx_from_best_x_times_final_iter = None
@@ -180,11 +205,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
         final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
         leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
-        # Decide on final times to use
-        # final_times_ms = best_x_times_final_iter[0]  # Takes best scoring model at final iteration
+        # final_times_ms = best_x_times_final_iter[0]  # Alternatively takes best scoring model at final iteration
 
         activation_ms = None
-
         if repol:  # Load activation times from mother dir
             #select_activation = run_id.split("_")[-1]  # When using angle
             alg_activation = alg_utils2.read_alg_mesh(f"{mother_data_path}/{patient_id}_{coarse_dx}_activation_times{select_activation}.alg")
@@ -192,79 +215,11 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             activation_ms = activation_s * 1000
             print(f"Run {run_id} using {patient_id}_{coarse_dx}_activation_times{select_activation}.alg as activation used")
 
-
-        # Find iteration-wise scores & comparisons to truths to plot convergence
-        iters, iter_scores, iter_median_corrs, iter_median_absdiffs = [], [], [], []
-
-        iter_median_corrs_apds, iter_median_absdiffs_apds = [], []
-
-        iter_best_x_params = []
-
-        corrs, mean_absdiffs, corrs_apds, mean_absdiffs_apds = None, None, None, None
-
-        if cap_at_converged_iter:
-            i_iter_maximum = i_iter_final
-
-        for iter_no in range(i_iter_start, i_iter_maximum, iter_step):
-            best_x_times, best_x_reg_scores, best_x_leads, best_x_params = laf2.get_best_x_rts_or_ats(run_path, iter_no, x_best, all_ids_and_diff_scores,
-                                                                                  repol=repol)
-
-            iter_best_x_params.append(best_x_params)
-
-            if compare_to_truth:
-                # Comparisons with ground truth for the best x solutions this iteration
-                corrs = [comp2.correlation(times, truth_times_ms) for times in best_x_times]
-                mean_absdiffs = [comp2.abs_diffs(times, truth_times_ms)[1] for times in best_x_times]
-
-            if repol:  # Calculate and compare APDs
-                best_x_apds = [repol_times - activation_ms for repol_times in best_x_times]
-                if compare_to_truth:
-                    corrs_apds = [comp2.correlation(apds, truth_apd90s_ms) for apds in best_x_apds]
-                    mean_absdiffs_apds = [comp2.abs_diffs(apds, truth_apd90s_ms)[1] for apds in best_x_apds]
-
-            # Store iteration-wise scores, correlations and absolute differences
-            iters.append(iter_no)
-            iter_scores.append(np.median(best_x_reg_scores))
-
-            if compare_to_truth:
-                iter_median_corrs.append(np.median(corrs))
-                iter_median_absdiffs.append(np.median(mean_absdiffs))
-
-                if repol:
-                    iter_median_corrs_apds.append(np.median(corrs_apds))
-                    iter_median_absdiffs_apds.append(np.median(mean_absdiffs_apds))
-
-        if not repol:
-            pass
-            # Scatterplots of vendo vmyo
-            """# Looking into whether v_endo, v_myo have some compensation issue
-            print(f"{iters=}")
-            print(f"{iter_best_x_params=}")
-            iter_v_endos, iter_v_myos = [[] for _ in iters], [[] for _ in iters]
-
-            for m, best_x_params in enumerate(iter_best_x_params):
-                for params in best_x_params:
-                    iter_v_endos[m].append(params[0][0])
-                    iter_v_myos[m].append(params[0][1])
-
-            x = np.array(iter_v_myos)
-            y = np.array(iter_v_endos)
-            num_m, num_points = x.shape
-            x_flat = x.flatten()
-            y_flat = y.flatten()
-            colors_per_point = np.repeat(np.array(iters), num_points)  # shape (num_m * num_points,)
-            plt.figure(24)
-            sc = plt.scatter(x_flat, y_flat, c=colors_per_point, cmap='cool', alpha=1.0)
-            cbar = plt.colorbar(sc)
-            cbar.set_label('Iteration number')
-            plt.title("(v_endo, v_myo) of best 10% solutions per iteration")
-            plt.xlabel('v_myo (cm/s)', fontsize=18)
-            plt.ylabel('v_endo (cm/s)', fontsize=18)
-            plt.xlim([10, 100])
-            plt.ylim([60, 200])
-            plt.show()"""
-
-
+        # Changes in scores etc over iterations
+        (iters, iter_scores, iter_median_corrs, iter_median_absdiffs, iter_median_corrs_apds,
+         iter_median_absdiffs_apds, iter_best_x_params) = get_convergence_info(i_iter_final, repol, compare_to_truth,
+                                                                               run_path, all_ids_and_diff_scores,
+                                                                               x_best, iter_step)
         # Same color for the same run
         color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         n_colors = len(color_cycle)
@@ -374,17 +329,12 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         leads_target_justcompare = {name: leads_target_justcompare[name] / (target_qrs_amps["I"] * units_2pt5uV_to_mV) if name in limb_leads else
                                 leads_target_justcompare[name] / (target_qrs_amps["V1"] * units_2pt5uV_to_mV) for name in lead_names}
 
-
-
-        #print(f"{target_qrs_amp_ratios=}")
-
         sim_limb_qrs = {lead: leads_sim_best[lead][sim_qrs_idxs] for lead in limb_leads if lead in leads_sim_best}
         target_limb_qrs = {lead: target_qrs_leads[lead][target_qrs_idxs] for lead in limb_leads if lead in target_qrs_leads}
         sim_prec_qrs = {lead: leads_sim_best[lead][sim_qrs_idxs] for lead in prec_leads if lead in leads_sim_best}
         target_prec_qrs = {lead: target_qrs_leads[lead][target_qrs_idxs] for lead in prec_leads if lead in target_qrs_leads}
         s_limb, s_prec = qrsm2.find_optimal_scaling(sim_limb_qrs, target_limb_qrs), qrsm2.find_optimal_scaling(sim_prec_qrs, target_prec_qrs)
 
-        #print(f"{s_limb=}, {s_prec=}")
 
         fleads_sim_best_dual = {}
         for lead in leads_sim_best:
@@ -408,19 +358,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                          sharey=True, rescale_signal=units_2pt5uV_to_mV,
                          linestyles=["-", "--"])
 
-        # TODO revisit plotting of the ECG match to preserve inter-lead amplitude ratios
-
         # Finding iter nos of where times + ECGs are stored for best params
         iter_nos_to_pop_ids = laf2.ids_to_storage_iter_nos([best_params_reg], all_ids_and_diff_scores)
-
-        # Load times of the best x ids from where they were saved before
-        best_x_ids_to_rts, best_x_ids_to_params, best_x_ids_to_leads = {}, {}, {}
-        for iter_no2, ids in iter_nos_to_pop_ids.items():
-            ids_and_rts_and_ecgs_temp = np.load(f"{run_path}/ids_and_rts_and_ecgs_{iter_no2}.npy",
-                                                allow_pickle=True).item()
-            for id in ids:
-                best_x_ids_to_params[id] = ids_and_rts_and_ecgs_temp[id][2]
-        best_x_params = [best_x_ids_to_params[id] for id in [best_params_reg]]
 
         if compare_to_truth:
             corr_final = comp2.correlation(final_times_ms, truth_times_ms)
@@ -430,10 +369,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             all_run_absdiffs[f"{target}/{run_id}"] = mean_absdiffs_final
             all_t_corrs.append(corr_final)
 
-
             if repol:
-                final_apds_ms = final_times_ms - activation_ms
-                corr_apd_final = comp2.correlation(final_apds_ms, truth_apd90s_ms)
+                final_apd90s_ms = final_times_ms - activation_ms
+                corr_apd_final = comp2.correlation(final_apd90s_ms, truth_apd90s_ms)
                 all_apd_corrs.append(corr_apd_final)
 
                 print(f"{round(corr_final, 3)=}")
@@ -447,7 +385,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 if not os.path.exists(glob_pt_dir):
                     os.makedirs(glob_pt_dir)
 
-
             # Local analysis dir
             np.save(f"{analysis_dir}/leads_sim_best_{patient_id}_{run_id}_{repol}.npy", leads_sim_best)
             np.save(f"{analysis_dir}/times_s_{patient_id}_{run_id}_{repol}.npy", times_s)
@@ -455,20 +392,18 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             np.save(f"{analysis_dir}/leads_target_{patient_id}_{run_id}_{repol}.npy", leads_target)
             np.save(f"{analysis_dir}/FINDIFF_{patient_id}_{run_id}_{repol}.npy", final_pop_diffs)
 
-            if glob_folder is not None: # Global analysis dir
+            if glob_folder is not None:  # Global analysis dir
                 np.save(f"{glob_pt_dir}/leads_sim_best_{patient_id}_{run_id}_{repol}.npy", leads_sim_best)
                 np.save(f"{glob_pt_dir}/times_s_{patient_id}_{run_id}_{repol}.npy", times_s)
                 np.save(f"{glob_pt_dir}/times_target_s_{patient_id}_{run_id}_{repol}.npy", times_target_s)
                 np.save(f"{glob_pt_dir}/leads_target_{patient_id}_{run_id}_{repol}.npy", leads_target)
                 np.save(f"{glob_pt_dir}/FINDIFF_{patient_id}_{run_id}_{repol}.npy", final_pop_diffs)
 
-
             if repol:
                 np.save(f"{analysis_dir}/FINREG_{patient_id}_{run_id}.npy", final_pop_regs)
 
                 if glob_folder is not None:
                     np.save(f"{glob_pt_dir}/FINREG_{patient_id}_{run_id}.npy", final_pop_regs)
-
 
             # Oxdataset alg
             if dataset_name == "oxdataset":
@@ -486,7 +421,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                     np.save(f"{glob_pt_dir}/{patient_id}_{run_id}_leads_selected_qrs.npy", leads_selected_qrs)
 
                 alg.append(final_times_ms)
-                final_apd90s_ms = best_x_times[0] - activation_ms
                 alg.append(final_apd90s_ms)
                 #alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_repol_times.alg", alg)
                 alg_utils2.save_alg_mesh(f"{analysis_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
