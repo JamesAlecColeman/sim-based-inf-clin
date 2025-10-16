@@ -63,7 +63,7 @@ def main():
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
         dataset_name = "simulated_truths"
         patient_id, bench_dx = "DTI003", 500
-        inferences_folder = "Inferences_twave_validation_local"
+        inferences_folder = "Inferences_twave_validation_final"
         stop_thresh = 0.00002
         random_seed = 0
 
@@ -79,9 +79,9 @@ def main():
 
     ############################################# Key Parameters #######################################################
     run_id = f"reg_{lambda_reg}_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_extended_floored_apexb_stopcondn_{random_seed}"
-    misc_suffix = f"_run_512_0.0_0.0_calc_discrepancy_separate_scaling"  # For loading activation times
+    misc_suffix = f"_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0"  # For loading activation times
     dx = 2000
-    n_iterations, percent_cutoff = 1600, 87.5
+    n_iterations, percent_cutoff = 2000, 87.5
     iter_dt_activation_s, iter_dt_repol_s, twave_safety_s = 0.002, 0.010, 0.050
     activation_start_s = 0.000
     plot, use_fibers, use_best_guess = 0, 0, 0

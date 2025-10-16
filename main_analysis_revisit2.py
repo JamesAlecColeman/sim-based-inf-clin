@@ -62,12 +62,12 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = None
+glob_folder = "global_tester"
 
 inferences_folder, repol, save_analysis = "Inferences_qrs_validation_final", 0, 1
 dataset_name = "simulated_truths"
 
-patient_id_select = "DTI003"
+patient_id_select = None
 run_id_select = [f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
 
 patient_id_skip = None
@@ -205,7 +205,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
         final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
         leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
-        # final_times_ms = best_x_times_final_iter[0]  # Alternatively takes best scoring model at final iteration
+        #final_times_ms = best_x_times_final_iter[0]  # Alternatively takes best scoring model at final iteration
 
         activation_ms = None
         if repol:  # Load activation times from mother dir
