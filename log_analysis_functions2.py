@@ -309,17 +309,21 @@ def get_best_x_rts_or_ats(run_dir, iter_no, x_best_indices, all_ids_and_diff_sco
 
     if repol:  # Use regularised scores
         pop_reg_scores = pop_ids_and_diff_scores[2]
+        pop_diff_scores = pop_ids_and_diff_scores[1]
     else:  # Use diffs
         pop_reg_scores = pop_ids_and_diff_scores[1]
+        pop_diff_scores = pop_ids_and_diff_scores[1]
 
     pop_ids = pop_ids_and_diff_scores[0]
     # pop_ids and pop_reg_scores are dicts like {i_try: id} so convert to arrays
     pop_ids, pop_reg_scores = np.array(list(pop_ids.values())), np.array(list(pop_reg_scores.values()))
+    pop_diff_scores = np.array(list(pop_diff_scores.values()))
 
     # Get indices of the x best scores
     best_x_indices = np.argsort(pop_reg_scores)[:x_best_indices]
     best_x_ids = pop_ids[best_x_indices]
     best_x_reg_scores = pop_reg_scores[best_x_indices]
+    best_x_diff_scores = pop_diff_scores[best_x_indices]
 
     # Finding iter nos of where RTs and ECGs saved of best x ids
     iter_nos_to_pop_ids = ids_to_storage_iter_nos(best_x_ids, all_ids_and_diff_scores)
@@ -340,7 +344,7 @@ def get_best_x_rts_or_ats(run_dir, iter_no, x_best_indices, all_ids_and_diff_sco
     best_x_leads = [best_x_ids_to_leads[id] for id in best_x_ids]
     best_x_params = [best_x_ids_to_params[id] for id in best_x_ids]
 
-    return best_x_rts, best_x_reg_scores, best_x_leads, best_x_params
+    return best_x_rts, best_x_reg_scores, best_x_leads, best_x_params, best_x_diff_scores
 
 
 def find_inference_runs(inferences_path):

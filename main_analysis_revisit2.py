@@ -62,27 +62,39 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = "global_tester"
+glob_folder = "global_analysis_twave_oxdataset_vary_lambda_representatives"
 
-inferences_folder, repol, save_analysis = "Inferences_qrs_validation_final", 0, 1
-dataset_name = "simulated_truths"
+inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_vary_lambda_representatives", 1, 1
+dataset_name = "oxdataset"
+compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
+
+mesh_type = "hcmbig"
 
 patient_id_select = None
-run_id_select = [f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
+run_id_select = None #[f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
 
 patient_id_skip = None
 stop_thresh, force_iter_final = 0.00002, None
 
 #select_activation = ""  # reg tuners
-select_activation = "_run_512_0.0_0.0_calc_discrepancy_separate_scaling" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
+select_activation = "_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
 
+save_png = 1
 plot_ecgs = 1
 
-compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
 iter_step, x_best = 100, 51  # View approximate convergence every iter_step iterations, just the x_best solutions
 
 i_iter_start = 0
 coarse_dx = 2000
+
+
+# make global folder if it doesnt exist
+full_path = os.path.join(main_dir, glob_folder)
+if not os.path.exists(full_path):
+    os.makedirs(full_path)
+
+if "twave" in inferences_folder and repol == 0:
+    print("Is repol set?")
 
 if dataset_name == "oxdataset":
     oxdataset = True
@@ -138,6 +150,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             patient_id, fine_dx, mesh_type = target_fields[0], target_fields[1], target_fields[2]
             benchmark_id = f"{patient_id}_{fine_dx}_{mesh_type}"
 
+    if dataset_name == "oxdataset":
+        benchmark_id = patient_id
+
     n_runs = len(runs_in_targets[target])
     mother_data_path = f"{inferences_path}/{target}/mother_data"
     mother_data_dir = list(os.listdir(mother_data_path))
@@ -185,7 +200,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         percent_cutoff = log_inf_params["percent_cutoff"]
         n_solutions_to_cluster = int(math.floor(n_tries * (percent_cutoff / 100)))  # Remove latest mutation fraction
 
-        best_x_times_final_iter, best_x_reg_scores_final_iter, best_x_leads_final_iter, best_x_params_final_iter = laf2.get_best_x_rts_or_ats(
+        best_x_times_final_iter, best_x_reg_scores_final_iter, best_x_leads_final_iter, best_x_params_final_iter, best_x_diff_scores_final_iter = laf2.get_best_x_rts_or_ats(
             run_path, i_iter_final, n_solutions_to_cluster, all_ids_and_diff_scores,
             repol=repol)
 
@@ -197,11 +212,16 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         final_soln_idx_from_best_x_times_final_iter = None
         for cluster_id, medoid_soln_idx in representatives.items():
             soln = best_x_times_final_iter[medoid_soln_idx]
-            if compare_to_truth:
-                if cluster_id == cluster_id_lowest_score:
-                    final_soln_idx_from_best_x_times_final_iter = medoid_soln_idx
+
+            if cluster_id == cluster_id_lowest_score:
+                final_soln_idx_from_best_x_times_final_iter = medoid_soln_idx
+                final_times_ms = soln  # Takes medoid of best scoring cluster at final iteration
+
+                if compare_to_truth:
                     r_to_truth = comp2.correlation(soln, truth_times_ms)  # Compare each solution medoid to ground truth
-                    final_times_ms = soln  # Takes medoid of best scoring cluster at final iteration
+
+        final_lowest_diff = best_x_diff_scores_final_iter[medoid_soln_idx]
+        final_lowest_reg = best_x_reg_scores_final_iter[medoid_soln_idx]
 
         final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
         leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
@@ -358,8 +378,15 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                          sharey=True, rescale_signal=units_2pt5uV_to_mV,
                          linestyles=["-", "--"])
 
+        if save_png:
+            plt.savefig(f"{glob_analysis_dir}/{patient_id}_{mesh_type}_{repol}.png", dpi=300, format='png')
+
         # Finding iter nos of where times + ECGs are stored for best params
         iter_nos_to_pop_ids = laf2.ids_to_storage_iter_nos([best_params_reg], all_ids_and_diff_scores)
+
+        if repol:
+            final_apd90s_ms = final_times_ms - activation_ms
+
 
         if compare_to_truth:
             corr_final = comp2.correlation(final_times_ms, truth_times_ms)
@@ -370,7 +397,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             all_t_corrs.append(corr_final)
 
             if repol:
-                final_apd90s_ms = final_times_ms - activation_ms
                 corr_apd_final = comp2.correlation(final_apd90s_ms, truth_apd90s_ms)
                 all_apd_corrs.append(corr_apd_final)
 
@@ -419,6 +445,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
                 if glob_folder is not None:
                     np.save(f"{glob_pt_dir}/{patient_id}_{run_id}_leads_selected_qrs.npy", leads_selected_qrs)
+                    np.save(f"{glob_pt_dir}/{patient_id}_{run_id}_final_diff_score.npy", final_lowest_diff)
+                    np.save(f"{glob_pt_dir}/{patient_id}_{run_id}_final_reg_score.npy", final_lowest_reg)
 
                 alg.append(final_times_ms)
                 alg.append(final_apd90s_ms)
