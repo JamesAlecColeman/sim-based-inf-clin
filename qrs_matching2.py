@@ -651,6 +651,46 @@ def calc_discrepancy_separate_scaling(leads_sim, leads_target):
     return np.mean(leads_discrepancy_overlay)
 
 
+def calc_discrepancy_shape_only_old(leads_sim, leads_target):
+
+    lead_names_to_compare = LEAD_NAMES_12
+
+    # Rescaling
+    amps_leads_sim = {key: max(val) - min(val) for key, val in leads_sim.items()}
+    rescaled_leads_sim = {key: val / amps_leads_sim[key] for key, val in leads_sim.items()}
+
+    amps_leads_target = {key: max(val) - min(val) for key, val in leads_target.items()}
+    rescaled_leads_target = {key: val / amps_leads_target[key] for key, val in leads_target.items()}
+
+    lead_diffs = {}
+
+    for i, key in enumerate(rescaled_leads_sim.keys()):
+
+        if key in rescaled_leads_target:  # Only compare leads in both target and pseudo ECG
+
+            lead_a, lead_b = rescaled_leads_sim[key], rescaled_leads_target[key]
+            size_a, size_b = np.max(lead_a) - np.min(lead_a), np.max(lead_b) - np.min(lead_b)
+
+            if not np.isclose(size_a, size_b, atol=0, rtol=1e-4):
+                raise Exception("Amplitudes of the leads being compared is different")
+
+            diffs = np.abs(lead_a - lead_b)
+
+            if lead_names_to_compare is not None:
+                if key in lead_names_to_compare:  # To just compare specific leads
+                    lead_diffs[key] = sum(diffs) / len(lead_a)
+            else:
+                lead_diffs[key] = sum(diffs) / len(lead_a)  # Mean diffs per sample
+
+    #times = [i for i in range(len(leads_sim["I"]))]
+    #ecg2.plot_ecg([times, times], [rescaled_leads_sim, rescaled_leads_target], colors=["red", "black"])
+
+    diff_score = sum(lead_diffs.values()) / len(lead_names_to_compare)
+    #print(f"{diff_score=}")
+
+    return diff_score
+
+
 def mesh_subset_with_dist_constraint(alg, dist_limit_um, neighbour_dist_um):
     """ Deterministic sampling of alg cells where sampled points must be > dist_limit_um from all other sample
         points

@@ -20,7 +20,7 @@ def get_convergence_info(i_iter_final, repol, compare_to_truth, run_path, all_id
     corrs, mean_absdiffs, corrs_apds, mean_absdiffs_apds = None, None, None, None
 
     for iter_no in range(i_iter_start, i_iter_final, iter_step):
-        best_x_times, best_x_reg_scores, best_x_leads, best_x_params = laf2.get_best_x_rts_or_ats(run_path, iter_no,
+        best_x_times, best_x_reg_scores, best_x_leads, best_x_params, best_x_diffs = laf2.get_best_x_rts_or_ats(run_path, iter_no,
                                                                                                   x_best,
                                                                                                   all_ids_and_diff_scores,
                                                                                                   repol=repol)
@@ -62,13 +62,13 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = "global_analysis_twave_oxdataset_vary_lambda_representatives"
+glob_folder = "global_analysis_twave_oxdataset_final_actual_lambda500"
 
-inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_vary_lambda_representatives", 1, 1
-dataset_name = "oxdataset"
+inferences_folder, repol, save_analysis = "Inferences_qrs_validation_final", 0, 1
+dataset_name = "simulated_truths"
 compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
 
-mesh_type = "hcmbig"
+mesh_type = "ctrl"
 
 patient_id_select = None
 run_id_select = None #[f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]

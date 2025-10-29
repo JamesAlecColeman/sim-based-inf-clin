@@ -58,17 +58,17 @@ def main():
     else:  # Setup arguments as in local run
         import addcopyfighandler
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-        dataset_name = "oxdataset"
-        patient_id, bench_dx = "DTI003", 500
-        inferences_folder = "Inferences_qrs_oxdataset_final_1024_local"
+        dataset_name = "simulated_truths"
+        patient_id, bench_dx = "DTI024", 500
+        inferences_folder = "Inferences_qrs_validation_local"
         stop_thresh = 0.00002
         random_seed = 0
 
         bench_type = "ctrl"
-        n_tries, n_processors, save_best_every_x = 256, 4, 1
+        n_tries, n_processors, save_best_every_x = 64, 2, 1
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []
-        discrepancy_name = "calc_discrepancy_separate_scaling"  # calc_discrepancy_separate_scaling for oxdataset
+        discrepancy_name = "calc_discrepancy_shape_only_old"  # calc_discrepancy_separate_scaling for oxdataset
 
         if dataset_name == "simulated_truths":
             benchmark_id = f"{patient_id}_{bench_dx}_{bench_type}" # monodomain ground truthsa
@@ -84,6 +84,11 @@ def main():
     min_n_root_nodes, max_n_root_nodes, root_nodes_dist_apart_um = 6, 10, 5000  # root nodes
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
+
+    # TODO TODO DELETE; DEBUG:
+    #v_endo_min, v_endo_max, v_endo_diff = 100, 100, 10  # possible v_endo range (cm/s)
+    #v_myo_min, v_myo_max, v_myo_diff = 50, 50, 10  # possible v_myo range (cm/s)
+
     log_every_x_iterations = 1
     window_size = 50
     ############################################# Best params ##########################################################
@@ -155,13 +160,14 @@ def main():
     if n_iterations < 100 and running_on_arc:
         raise Exception(f"{n_iterations=}")
 
-    if (len(v_endos) == 1 or len(v_myos) == 1) and running_on_arc:
+    if (len(v_endos) < 3 or len(v_myos) < 3) and running_on_arc:
         print("Using debug setup still")
         print(f"{v_endos=}, {v_myos=}")
         raise Exception("ARC run with small v_endo, v_myo param space?")
 
     discrepancy_metrics = {"calc_discrepancy": qrsm2.calc_discrepancy,
-                           "calc_discrepancy_separate_scaling": qrsm2.calc_discrepancy_separate_scaling}
+                           "calc_discrepancy_separate_scaling": qrsm2.calc_discrepancy_separate_scaling,
+                           "calc_discrepancy_shape_only_old": qrsm2.calc_discrepancy_shape_only_old}
     discrep_func = discrepancy_metrics[discrepancy_name]
 
     lead_names = LEAD_NAMES_12
