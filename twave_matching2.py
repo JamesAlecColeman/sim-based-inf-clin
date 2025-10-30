@@ -715,7 +715,7 @@ def params_to_apd90s_field_apexb(params, all_dijk_dists_cm, trans, apexb, min_po
         np.ndarray: APD90 field (int16) per cell after regional modifications and apex-base scaling, clipped to valid range.
     """
     # Converts T wave params to apd90 field interim params
-    n_cells = all_dijk_dists_cm.shape[0]
+    n_cells = len(apexb)
     apd90_field_ms = np.ones(n_cells) * params["apd90_base_ms"]
 
     if len(params["apd90_disks"]):

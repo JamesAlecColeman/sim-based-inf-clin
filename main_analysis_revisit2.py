@@ -62,16 +62,16 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = "global_analysis_twave_oxdataset_final_actual_lambda500"
+glob_folder = "global_analysis_qrs_validation_old_discrep"
 
-inferences_folder, repol, save_analysis = "Inferences_qrs_validation_final", 0, 1
+inferences_folder, repol, save_analysis = "Inferences_qrs_validation_old_discrep", 0, 1
 dataset_name = "simulated_truths"
-compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
+compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
 
 mesh_type = "ctrl"
 
 patient_id_select = None
-run_id_select = None #[f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
+run_id_select = ["run_1024_0.0_0.0_calc_discrepancy_0"] #None #[f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
 
 patient_id_skip = None
 stop_thresh, force_iter_final = 0.00002, None
@@ -87,11 +87,11 @@ iter_step, x_best = 100, 51  # View approximate convergence every iter_step iter
 i_iter_start = 0
 coarse_dx = 2000
 
-
-# make global folder if it doesnt exist
-full_path = os.path.join(main_dir, glob_folder)
-if not os.path.exists(full_path):
-    os.makedirs(full_path)
+if glob_folder is not None:
+    # make global folder if it doesnt exist
+    full_path = os.path.join(main_dir, glob_folder)
+    if not os.path.exists(full_path):
+        os.makedirs(full_path)
 
 if "twave" in inferences_folder and repol == 0:
     print("Is repol set?")
@@ -119,6 +119,8 @@ n_rows, n_cols = axs.shape
 
 all_run_scores, all_run_corrs, all_run_absdiffs = {}, {}, {}
 all_t_corrs, all_apd_corrs = [], []
+
+s_limbs, s_precs, scores_out = [], [], []
 
 n_targ = len(targets_in_inf_folder)
 for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferences_Folder/DTI003_500_ctrl"
@@ -222,6 +224,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
         final_lowest_diff = best_x_diff_scores_final_iter[medoid_soln_idx]
         final_lowest_reg = best_x_reg_scores_final_iter[medoid_soln_idx]
+        scores_out.append(final_lowest_reg)
 
         final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
         leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
@@ -355,6 +358,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         target_prec_qrs = {lead: target_qrs_leads[lead][target_qrs_idxs] for lead in prec_leads if lead in target_qrs_leads}
         s_limb, s_prec = qrsm2.find_optimal_scaling(sim_limb_qrs, target_limb_qrs), qrsm2.find_optimal_scaling(sim_prec_qrs, target_prec_qrs)
 
+        s_limbs.append(s_limb)
+        s_precs.append(s_prec)
 
         fleads_sim_best_dual = {}
         for lead in leads_sim_best:
@@ -368,18 +373,6 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             plot_target = {name: target_qrs_leads[name][target_idxs] for name in target_qrs_leads}
         else:
             plot_target = leads_target_justcompare
-
-        if plot_ecgs:
-            ecg2.plot_ecg_clinical_style([times_s, times_target_s[target_idxs]],
-                         [fleads_sim_best_dual, plot_target],
-                         xlims=[0, 0.45], colors=["red", "black"], fig_no=ecg_fig_no + 1,
-                         title=target + run_id + " (Dual Scaling)", show=False,
-                         labels=["Simulated", "Target"], axes_off=True, ylabel="Signal (mV)",
-                         sharey=True, rescale_signal=units_2pt5uV_to_mV,
-                         linestyles=["-", "--"])
-
-        if save_png:
-            plt.savefig(f"{glob_analysis_dir}/{patient_id}_{mesh_type}_{repol}.png", dpi=300, format='png')
 
         # Finding iter nos of where times + ECGs are stored for best params
         iter_nos_to_pop_ids = laf2.ids_to_storage_iter_nos([best_params_reg], all_ids_and_diff_scores)
@@ -402,6 +395,19 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
                 print(f"{round(corr_final, 3)=}")
                 print(f"{round(corr_apd_final, 3)=}")
+
+
+        if plot_ecgs:
+            ecg2.plot_ecg_clinical_style([times_s, times_target_s[target_idxs]],
+                         [fleads_sim_best_dual, plot_target],
+                         xlims=[0, 0.45], colors=["red", "black"], fig_no=ecg_fig_no + 1,
+                         title=f"{target}, {run_id}, {round(s_limb)}, {round(s_prec)}, {round(corr_final, 2)}", show=False,
+                         labels=["Simulated", "Target"], axes_off=True, ylabel="Signal (mV)",
+                         sharey=True, rescale_signal=units_2pt5uV_to_mV,
+                         linestyles=["-", "--"])
+        if save_png and glob_folder is not None:
+            plt.savefig(f"{glob_analysis_dir}/{patient_id}_{mesh_type}_{repol}_{run_id}.png", dpi=300, format='png')
+
 
         all_run_scores[f"{target}/{run_id}"] = min_reg_score
 
@@ -544,4 +550,15 @@ print(f"{all_t_corrs=}")
 print(f"{all_apd_corrs=}")
 
 plt.tight_layout()
+plt.show()
+
+sc = plt.scatter(s_limbs, s_precs, c=all_t_corrs, cmap='jet')
+plt.ylabel("Precordial optimal scaling factor")
+plt.xlabel("Limb optimal scaling factor")
+plt.colorbar(sc, label="activation spearman r")
+plt.show()
+
+plt.scatter(scores_out, all_t_corrs)
+plt.xlabel("QRS match score")
+plt.ylabel("activation spearman r")
 plt.show()

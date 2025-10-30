@@ -1,7 +1,8 @@
 import numpy as np
 
-
 LEAD_NAMES_12 = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+LEAD_NAMES_LIMB_6 = ["I", "II", "III", "aVR", "aVL", "aVF"]
+LEAD_NAMES_PREC_6 = ["V1", "V2", "V3", "V4", "V5", "V6"]
 
 NEIGHBOURS_FACE = np.array([(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)])  # 6
 NEIGHBOURS_EDGE = np.array([(-1, -1, 0), (-1, 1, 0), (1, -1, 0), (1, 1, 0),  # 12
