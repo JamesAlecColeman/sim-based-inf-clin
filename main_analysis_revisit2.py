@@ -62,16 +62,16 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = "global_analysis_qrs_validation_old_discrep"
+glob_folder = "global_analysis_twave_validation_final_lambda100"
 
-inferences_folder, repol, save_analysis = "Inferences_qrs_validation_old_discrep", 0, 1
+inferences_folder, repol, save_analysis = "Inferences_twave_validation_final_lambda100", 1, 1
 dataset_name = "simulated_truths"
 compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
 
 mesh_type = "ctrl"
 
-patient_id_select = None
-run_id_select = ["run_1024_0.0_0.0_calc_discrepancy_0"] #None #[f"run_1024_0.0_0.0_calc_discrepancy_separate_scaling_{i}" for i in range(1)]
+patient_id_select = "DTI1241"
+run_id_select = None  #[f"run_512_0.0_0.0_calc_discrepancy_separate_scaling" for i in range(1)]
 
 patient_id_skip = None
 stop_thresh, force_iter_final = 0.00002, None
@@ -122,6 +122,8 @@ all_t_corrs, all_apd_corrs = [], []
 
 s_limbs, s_precs, scores_out = [], [], []
 
+fin_iters = []
+
 n_targ = len(targets_in_inf_folder)
 for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferences_Folder/DTI003_500_ctrl"
     print(f"{target=}")
@@ -156,6 +158,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         benchmark_id = patient_id
 
     n_runs = len(runs_in_targets[target])
+
     mother_data_path = f"{inferences_path}/{target}/mother_data"
     mother_data_dir = list(os.listdir(mother_data_path))
 
@@ -171,6 +174,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
     print(f"{activation_times_count} activation files in mother data, {n_runs=}")
 
     for i_run, run_id in enumerate(runs_in_targets[target]):  # E.g. now in ""DTI003_500_ctrl/runtime_512_-10.0""
+
         if run_id_select is not None:
             if run_id not in run_id_select:
                 continue
@@ -188,6 +192,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
          abs_moving_avg) = laf2.apply_stop_condition(run_path, iterations, twave_diff_threshold=stop_thresh,
                                                     i_population_name="pop_ids_and_diffs/population_ids_and_diff_scores",
                                                     repol=repol, force_iter_final=force_iter_final, plot=0)
+        fin_iters.append(i_iter_final)
         print(f"Stopped at iteration {i_iter_final} of {n_iterations} iterations")
         print(f"min diff, reg scores = {float(min_diff_score)}, {float(min_reg_score)}")
 
@@ -395,16 +400,19 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
                 print(f"{round(corr_final, 3)=}")
                 print(f"{round(corr_apd_final, 3)=}")
+        else:
+            corr_final = 2
 
 
         if plot_ecgs:
-            ecg2.plot_ecg_clinical_style([times_s, times_target_s[target_idxs]],
+            ecg2.plot_ecg_clinical_style_testing([times_s, times_target_s[target_idxs]],
                          [fleads_sim_best_dual, plot_target],
                          xlims=[0, 0.45], colors=["red", "black"], fig_no=ecg_fig_no + 1,
                          title=f"{target}, {run_id}, {round(s_limb)}, {round(s_prec)}, {round(corr_final, 2)}", show=False,
                          labels=["Simulated", "Target"], axes_off=True, ylabel="Signal (mV)",
                          sharey=True, rescale_signal=units_2pt5uV_to_mV,
-                         linestyles=["-", "--"])
+                         linestyles=["-", "--"], legend=False, t_per_lead=0.7, v_per_lead=2.5, t_minner=0.15, t_maxxer=2.9,
+                          v_minner=1, v_maxxer=9, text_off=-0.15, all_linewidths=[3, 3], minor_axes=False)
         if save_png and glob_folder is not None:
             plt.savefig(f"{glob_analysis_dir}/{patient_id}_{mesh_type}_{repol}_{run_id}.png", dpi=300, format='png')
 
@@ -480,6 +488,11 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 if glob_folder is not None:
                     np.save(f"{glob_pt_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))
 
+print(f"{fin_iters=}")
+print(np.mean(fin_iters))
+
+
+
 axs[0, 0].set_ylabel("Scores")
 axs[0, 0].legend(fontsize='x-small', borderpad=0.1, labelspacing=0.2, handletextpad=0.2, loc='best')
 
@@ -511,6 +524,7 @@ for i in range(n_rows):
 
 plt.tight_layout()
 plt.show()
+
 
 # At-a-glance summary of run final results as a bar plot
 width_px, height_px, dpi = 850, 750, 100

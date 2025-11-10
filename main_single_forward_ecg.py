@@ -8,23 +8,23 @@ import ecg2
 from constants2 import *
 from smoothing2 import preprocessing_gaussian_smoothing_fourier
 from scipy.sparse.csgraph import dijkstra
+import addcopyfighandler
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 dataset_name = "oxdataset"
-patient_id, dx = "DTI001", 2000
+patient_id, dx = "DTI024", 2000
 
 glob_0 = "global_analysis_qrs_oxdataset_final_1024"  # Activation global folder
-glob_1 = "global_analysis_twave_oxdataset_final_actual_lambda500"  # Repolarisation global folder
+glob_1 = "global_analysis_twave_oxdataset_final_actual_lambda200"  # Repolarisation global folder
 
 misc_0 = "_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0"  # Activation misc suffix
-misc_1 = "_reg_500.0_512_0.0_0.0_extended_floored_apexb_stopcondn_0"  # Repolarisation misc suffix
+misc_1 = "_reg_200.0_512_0.0_0.0_extended_floored_apexb_stopcondn_0"  # Repolarisation misc suffix
 
 ap_table_name = "ap_table_2d_extended"
 min_possible_apd90_ms, max_possible_apd90_ms = 150, 450
 
-iter_dt_qrs_s = 0.002
 total_time_s = 0.600
-iter_dt_twave_s = 0.020
+iter_dt_qrs_s, iter_dt_twave_s = 0.005, 0.005
 
 # Load fundamentals
 if dataset_name == "simulated_truths":
@@ -107,6 +107,7 @@ apd90_params = twm2.params_to_apd90s_field_apexb(besttwaveparams, all_dijk_dists
 
 n_qrs_idxs = len(times_qrs_s)
 
+# plot a single ecg
 all_vms = twm2.make_vms_field_2daptable(times_s, activation_times_s, besttwaveparams, ap_table_args,
                                         repol_args_2daptable, apd90_params)
 electrodes_vs, _ = twm2.pseudo_ecg(times_s, electrodes_xyz, elec_grads, dx, neighbour_args, all_vms)
@@ -118,5 +119,39 @@ leads_plot = {name: leads[name] / I_amp for name in LEAD_NAMES_LIMB_6}
 for name in LEAD_NAMES_PREC_6:
     leads_plot[name] = leads[name] / V1_amp
 
-ecg2.plot_ecg_clinical_style([times_s], [leads_plot])
+ecg2.plot_ecg_clinical_style_testing([times_s], [leads_plot])
 
+# Save all_vms somewhere
+print(f"{all_vms.shape=}")
+print(f"{times_s=}")
+np.save(f"{main_dir}/all_vms_test.npy", all_vms)
+
+# Example parameter sweep
+"""
+all_leads_plot = []
+
+ap_shapes = np.arange(0.0, 1.0 + 0.1, 0.1)
+
+for ap_shape_param in ap_shapes:
+
+    besttwaveparams["ap_shape_param"] = ap_shape_param
+
+    all_vms = twm2.make_vms_field_2daptable(times_s, activation_times_s, besttwaveparams, ap_table_args,
+                                            repol_args_2daptable, apd90_params)
+    electrodes_vs, _ = twm2.pseudo_ecg(times_s, electrodes_xyz, elec_grads, dx, neighbour_args, all_vms)
+    leads = ecg2.ten_electrodes_to_twelve_leads(electrodes_vs)
+
+    # Scale by setting I amp to 1mV, V1 amp to 1mV (separate limb, precordial for clin. ECG plot)
+    I_amp, V1_amp = np.max(leads["I"][:n_qrs_idxs]) - np.min(leads["I"][:n_qrs_idxs]), np.max(leads["V1"][:n_qrs_idxs]) - np.min(leads["V1"][:n_qrs_idxs])
+    leads_plot = {name: leads[name] / I_amp for name in LEAD_NAMES_LIMB_6}
+    for name in LEAD_NAMES_PREC_6:
+        leads_plot[name] = leads[name] / V1_amp
+
+    all_leads_plot.append(leads_plot)
+
+import matplotlib.pyplot as plt
+cmap = plt.cm.viridis  # or 'plasma', 'coolwarm', etc.
+colors = [cmap(ap_shape_param) for ap_shape_param in ap_shapes]
+
+ecg2.plot_ecg_clinical_style([times_s for _ in range(len(all_leads_plot))], all_leads_plot, colors=colors)
+"""

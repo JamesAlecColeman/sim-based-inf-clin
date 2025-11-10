@@ -490,11 +490,10 @@ def calc_grads(vms, neighbour_arrays, dx, special_indices=None):
     grad[:, 2] /= np.maximum(count_z, 1)  # per-cell count for z direction
 
     return grad
-
-
-def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, linestyles=None, axes_off=True, xlims=None, show=True, fig_no=1,
+def plot_ecg_clinical_style_testing(all_times_s, all_leads, colors=None, labels=None, linestyles=None, axes_off=True, xlims=None, show=True, fig_no=1,
              linewidth=1.5, show_zero=False, title=False, all_not_to_plot=None, text_overlays=None, legend=True, alpha=1.0, ylabel=None,
-             sharey=False, rescale_signal=1.0):
+             sharey=False, rescale_signal=1.0, show_scale=True, major_axes=True, minor_axes=True, all_linewidths=None, t_per_lead = 0.70, v_per_lead = 5.5,
+                                    v_minner=-1, v_maxxer=15, t_minner=0.15, t_maxxer=2.95, text_off=0):
     plt.rcParams['font.family'] = 'Arial'
 
     n_leads = len(all_leads)
@@ -504,8 +503,12 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
         colors = ["black" for _ in range(n_leads)]
     if linestyles is None:
         linestyles = ["-" for _ in range(n_leads)]
-    if labels is None:
-        labels = ["A" for _ in range(n_leads)]
+    if labels is not None:
+        labels_used = labels
+    else:
+        labels_used = ["default" for _ in range(n_leads)]
+    if all_linewidths is None:
+        all_linewidths = [1.0 for _ in range(n_leads)]
 
     for i, leads in enumerate(all_leads):  # Apply optional rescaling to all leads
         leads_rescaled = {lead_name: leads[lead_name] * rescale_signal for lead_name in leads.keys()}
@@ -516,10 +519,11 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
     v_spacing_minor_mV, v_spacing_major_mV = 0.1, 0.5
 
     # Spacing of different leads
-    time_left_offsets = 0.2
+    time_left_offsets = 0.25
     v_top_offsets = 2.0
-    time_per_lead_s = 0.65  #
-    v_per_lead_mV = 5.0
+
+    time_per_lead_s = t_per_lead
+    v_per_lead_mV = v_per_lead
 
     global_min_v, global_max_v = np.inf, -np.inf  # Track ECG signal ranges (incl offsets etc)
     global_min_t, global_max_t = np.inf, -np.inf
@@ -527,7 +531,7 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
 
     fig, ax = plt.subplots(figsize=(10, 8), num=fig_no)
     lead_order = [["III", "aVF", "V3", "V6"], ["II", "aVL", "V2", "V5"], ["I", "aVR", "V1", "V4"]]
-    for n, (times_s, leads, cols, styles, label) in enumerate(zip(all_times_s, all_leads, colors, linestyles, labels)):
+    for n, (times_s, leads, cols, styles, label, lw) in enumerate(zip(all_times_s, all_leads, colors, linestyles, labels_used, all_linewidths)):
         for row_idx, row in enumerate(lead_order):
             for col_idx, lead_name in enumerate(row):
                 time_offset = col_idx * time_per_lead_s
@@ -536,7 +540,7 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
                 time = times_s + time_offset + time_left_offsets
 
                 ax.plot(time, signal,
-                    label=label, color=cols, linestyle=styles)
+                    label=label, color=cols, linestyle=styles, linewidth=lw)
 
                 # Updating signal min/max
                 signal_min = np.min(signal)
@@ -553,13 +557,14 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
                 if t_max > global_max_t:
                     global_max_t = t_max
 
+                text_off_y = 0.2
                 if n == 0:
-                    ax.text(t_max, voltage_offset + v_top_offsets + v_spacing_major_mV, lead_name,
-                            fontsize=16, verticalalignment='bottom', horizontalalignment='right', color="gray")
+                    ax.text(t_max + text_off, voltage_offset + v_top_offsets + v_spacing_major_mV + text_off_y, lead_name,
+                            fontsize=31, verticalalignment='bottom', horizontalalignment='right', color="gray")
 
     # Big range for drawing the grid lines, then we zoom in using xlim, ylim
-    v_min_mV, v_max_mV = -25, +25
-    time_min_s, time_max_s = -1, 3
+    v_min_mV, v_max_mV = -25, 25
+    time_min_s, time_max_s = -1, 4
 
     # Major & minor gridlines (time axis)
     xticks = np.arange(time_min_s, time_max_s + time_spacing_major_s, time_spacing_major_s)
@@ -571,12 +576,19 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
     ax.set_yticks(yticks)
     ax.yaxis.set_minor_locator(ticker.MultipleLocator(v_spacing_minor_mV))
 
-    ax.grid(True, which='major', axis='both', linewidth=0.3, zorder=0)
-    ax.grid(True, which='minor', axis='both', linewidth=0.1, linestyle='-', color='gray', zorder=0)
+    if major_axes:
+        ax.grid(True, which='major', axis='both', linewidth=0.3, zorder=0)
+    if minor_axes:
+        ax.grid(True, which='minor', axis='both', linewidth=0.1, linestyle='-', color='gray', zorder=0)
 
     # Set limits
+    # Based on this particular ECG
     ax.set_ylim([global_min_v - v_spacing_major_mV, global_max_v + v_spacing_major_mV])
     ax.set_xlim([global_min_t - time_spacing_major_s, global_max_t + time_spacing_major_s])
+
+    # Based on some predefined ranges
+    ax.set_ylim([v_minner, v_maxxer])
+    ax.set_xlim([t_minner, t_maxxer])
 
     for line in ax.get_xgridlines() + ax.get_ygridlines():
         line.set_antialiased(False)
@@ -592,24 +604,27 @@ def plot_ecg_clinical_style(all_times_s, all_leads, colors=None, labels=None, li
     ax.xaxis.label.set_color('white')  # X-axis label (if used)
     ax.yaxis.label.set_color('white')  # Y-axis label (if used)
 
-    # Mark time and voltage
-    box_start_x = 2 * time_spacing_major_s
-    box_start_y = 0 * v_per_lead_mV
 
-    box_width = time_spacing_major_s  # 100 ms (0.1s)
-    box_height = v_spacing_major_mV  # 0.5 mV (0.5mV)
-    ax.plot([box_start_x, box_start_x + box_width], [box_start_y, box_start_y],
-            color='grey', lw=2.0, solid_capstyle='butt')
-    ax.plot([box_start_x, box_start_x], [box_start_y, box_start_y + box_height],
-            color='grey', lw=2.0, solid_capstyle='butt')
-    ax.text(box_start_x + box_width / 2, box_start_y - (box_height * 0.3),
-            '100ms', ha='center', va='top', fontsize=13, color='grey')
-    ax.text(box_start_x - (box_width * 0.3), box_start_y + box_height / 2,
-            '0.5mV', ha='right', va='center', fontsize=13, rotation='vertical', color='grey')
+    if show_scale:
+        # Mark time and voltage
+        box_start_x = 2 * time_spacing_major_s
+        box_start_y = 0 * v_per_lead_mV
 
-    if legend:
+        box_width = time_spacing_major_s  # 100 ms (0.1s)
+        box_height = v_spacing_major_mV  # 0.5 mV (0.5mV)
+        ax.plot([box_start_x, box_start_x + box_width], [box_start_y, box_start_y],
+                color='grey', lw=2.0, solid_capstyle='butt')
+        ax.plot([box_start_x, box_start_x], [box_start_y, box_start_y + box_height],
+                color='grey', lw=2.0, solid_capstyle='butt')
+        ax.text(box_start_x + box_width / 2, box_start_y - (box_height * 0.3),
+                '100ms', ha='center', va='top', fontsize=13, color='grey')
+        ax.text(box_start_x - (box_width * 0.3), box_start_y + box_height / 2,
+                '0.5mV', ha='right', va='center', fontsize=13, rotation='vertical', color='grey')
+
+    if legend and labels is not None:
         handles, labels = plt.gca().get_legend_handles_labels()
         unique = dict(zip(labels, handles))
+
         ax.legend(unique.values(), unique.keys(), fontsize=13, fancybox=True, framealpha=0.85, edgecolor='gray',
             borderpad=0.3, labelspacing=0.1, handlelength=0.80, handletextpad=0.5, loc='lower right')
 
