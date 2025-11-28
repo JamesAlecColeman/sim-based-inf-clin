@@ -1,23 +1,23 @@
 import sys
 
-running_on_arc = True
+running_on_arc = False
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
     sys.path.append(scripts_dir)
 
-import alg_utils2
+import alg_utils
 import os
-from constants2 import *
-import cache2
-from smoothing2 import preprocessing_gaussian_smoothing_fourier
+from constants import *
+import cache
+from smoothing import preprocessing_gaussian_smoothing_fourier
 import numpy as np
 import time
-import log_inference2 as log
+import log_inference as log
 from scipy.sparse.csgraph import dijkstra
-import ecg2
-import twave_matching2 as twm2
-import utils2
+import ecg
+import twave_matching as twm2
+import utils
 import random
 
 
@@ -29,7 +29,7 @@ def main():
                  "dataset_name", "stop_thresh", "random_seed"]
 
     if running_on_arc:  # ARC run setup
-        args = utils2.parse_args(arg_names)
+        args = utils.parse_args(arg_names)
 
         main_dir = "/data/coml-cardinal/scat8499/Monoscription"
 
@@ -61,14 +61,14 @@ def main():
     else:  # Local run setup
         import addcopyfighandler
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-        dataset_name = "simulated_truths"
-        patient_id, bench_dx = "DTI003", 500
-        inferences_folder = "Inferences_twave_validation_final"
+        dataset_name = "oxdataset"
+        patient_id, bench_dx = "DTI024", 500
+        inferences_folder = "Inferences_twave_oxdataset_local"
         stop_thresh = 0.00002
         random_seed = 0
 
         bench_type = "hcmbig"
-        n_tries, n_processors, save_best_every_x, lambda_reg = 32, 6, 1, 300.0
+        n_tries, n_processors, save_best_every_x, lambda_reg = 64, 3, 1, 200.0
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []  # 4, 5, 6, 7, 8, 9 is V1-V6
 
@@ -79,7 +79,7 @@ def main():
 
     ############################################# Key Parameters #######################################################
     run_id = f"reg_{lambda_reg}_{n_tries}_{angle_rot_deg}_{elec_rad_translation_um}_extended_floored_apexb_stopcondn_{random_seed}"
-    misc_suffix = f"_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0"  # For loading activation times
+    misc_suffix = f"_run_64_0_0.0_calc_discrepancy_separate_scaling_0"  # For loading activation times
     dx = 2000
     n_iterations, percent_cutoff = 2000, 87.5
     iter_dt_activation_s, iter_dt_repol_s, twave_safety_s = 0.002, 0.010, 0.050
@@ -104,20 +104,20 @@ def main():
         # Load alg old
         seg_name = "rvseg"
         mesh_dir = f"{main_dir}/Meshes_{dx}"
-        mesh_filename = utils2.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
-        alg = alg_utils2.read_alg_mesh(f"{mesh_dir}/{mesh_filename}")
+        mesh_filename = utils.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
+        alg = alg_utils.read_alg_mesh(f"{mesh_dir}/{mesh_filename}")
         trans = alg[10]  # 0: endo, 1: epi
         apexb = alg[14]
         # Read from cache (old)
         cache_path = f"{main_dir}/Cache/{patient_id}_{dx}_cache.npy"
         mesh_info_dict = np.load(cache_path, allow_pickle=True).item()
         keys_to_read = ["electrodes_xyz"]
-        (electrodes_xyz,) = cache2.check_cache(mesh_info_dict, keys_to_read)
+        (electrodes_xyz,) = cache.check_cache(mesh_info_dict, keys_to_read)
     # Load alg oxdataset
     elif dataset_name == "oxdataset":
         mesh_alg_name = f"{patient_id}_{dx}_fields.alg"
         mesh_path = f"{main_dir}/Cache_Oxdataset/out/{mesh_alg_name}"
-        alg = alg_utils2.read_alg_mesh(mesh_path)
+        alg = alg_utils.read_alg_mesh(mesh_path)
         trans = alg[10]
         apexb = alg[12]
         # Read electrode posns (new)
@@ -139,7 +139,7 @@ def main():
 
     alg = alg[:6]
     n_cells = len(alg[0])
-    xs, ys, zs, *_ = alg_utils2.unpack_alg_geometry(alg)
+    xs, ys, zs, *_ = alg_utils.unpack_alg_geometry(alg)
 
     # Prepare dijkstra distances for radius-wise apd manipulation
     dijk_dist_path = f"{no_seg_dir}/{patient_id}_{dx}_dijk_dists.npy"
@@ -147,8 +147,8 @@ def main():
     if os.path.exists(dijk_dist_path):  # Load dijkstra dists if already saved
         all_dijk_dists_cm = np.load(dijk_dist_path)
     else:  # Prepare dijkstra neighbourhoods for all points
-        grid_dict = alg_utils2.make_grid_dictionary(xs, ys, zs)
-        adjacency_list_26 = ecg2.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict,
+        grid_dict = alg_utils.make_grid_dictionary(xs, ys, zs)
+        adjacency_list_26 = ecg.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict,
                                                               NEIGHBOURS_26)  # Post-fibers version (displacement vectors for fib projections)
         adjacency_matrix = twm2.create_sparse_adjacency_distance(adjacency_list_26)
         all_dijk_dists_cm = dijkstra(adjacency_matrix, return_predecessors=False)  # Distances in cm
@@ -193,7 +193,7 @@ def main():
 
     mesh_alg_activation_name = f"{patient_id}_{dx}_activation_times.alg"
     mesh_alg_activation_path = f"{run_dir}/{mesh_alg_activation_name}"
-    alg_activation = alg_utils2.read_alg_mesh(mesh_alg_activation_path)
+    alg_activation = alg_utils.read_alg_mesh(mesh_alg_activation_path)
     activation_times_s = np.array(alg_activation[-1])
     activation_times_s = np.round(activation_times_s / ap_time_res_s) * ap_time_res_s
 
@@ -213,18 +213,18 @@ def main():
     center_of_mass = np.array([np.mean(xs), np.mean(ys), np.mean(zs)])
 
     keys_to_read = ["basal_plane_axis", "lv_rv_vec_proj", "final_axis2"]
-    axis0, axis1, axis2 = cache2.check_cache(mesh_info_dict, keys_to_read)
+    axis0, axis1, axis2 = cache.check_cache(mesh_info_dict, keys_to_read)
     axes_dict = {"basal_plane_axis": axis0, "lv_rv_vec_proj": axis1, "final_axis2": axis2}
 
-    electrodes_xyz = alg_utils2.rotate_electrodes(electrodes_xyz, axis0, axis1, axis2, axes_dict[axis_name], run_dir,
+    electrodes_xyz = alg_utils.rotate_electrodes(electrodes_xyz, axis0, axis1, axis2, axes_dict[axis_name], run_dir,
                                                   angle_rot_deg, varying_angle, center_of_mass)
-    electrodes_xyz = alg_utils2.translate_electrodes(electrodes_xyz, elec_rad_translation_um, elec_idxs_to_translate,
+    electrodes_xyz = alg_utils.translate_electrodes(electrodes_xyz, elec_rad_translation_um, elec_idxs_to_translate,
                                                     center_of_mass, run_dir)
 
     # Preprocessing for pseudo ECG computation
-    grid_dict = alg_utils2.make_grid_dictionary(xs, ys, zs)
-    neighbour_arrays, neighbour_arrays2 = ecg2.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
-    elec_grads = ecg2.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
+    grid_dict = alg_utils.make_grid_dictionary(xs, ys, zs)
+    neighbour_arrays, neighbour_arrays2 = ecg.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
+    elec_grads = ecg.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
 
     # Preprocess parts of smoothing
     x_i, y_i, z_i, vms_grid, dx, smoothed_mask = preprocessing_gaussian_smoothing_fourier(xs, ys, zs, sigma_um)
@@ -260,7 +260,7 @@ def main():
                                dx, neighbour_args, current_iter_apd90s, current_iter_params, all_activation_times_s,
                                repol_args_2daptable, ap_table_args, times_s, None, return_vms=True))
 
-    leads_qrs_sim = ecg2.ten_electrodes_to_twelve_leads(all_electrodes[0])
+    leads_qrs_sim = ecg.ten_electrodes_to_twelve_leads(all_electrodes[0])
     all_vms_activation = all_vms_activation[0]  # dict to array
 
     if not use_best_guess:
@@ -295,7 +295,7 @@ def main():
         population_ids, population_ids_check, ids_and_ecgs_rts_params, population_grad_norms = {}, {}, {}, {}
 
         for i_try in tries:
-            leads_twave_sim = ecg2.ten_electrodes_to_twelve_leads(all_electrodes[i_try])
+            leads_twave_sim = ecg.ten_electrodes_to_twelve_leads(all_electrodes[i_try])
             # For saving of full unscaled ECG
             all_leads_full_ecg_sim_notrescaled[i_try] = {name: np.concatenate([np.array(leads_qrs_sim[name]), np.array(leads_twave_sim[name])]) for name in lead_names}
             population_diff_scores[i_try], times_target_subset_s, all_leads_sim[i_try], target_full_ecg_leads_normed = \
@@ -341,7 +341,7 @@ def main():
 
         regularised_scores = list(population_reg_scores.values())
         iter_median_reg_scores.append(np.median(regularised_scores))
-        keys_below, keys_above = ecg2.tie_aware_proportional_split(population_reg_scores, percent_cutoff)
+        keys_below, keys_above = ecg.tie_aware_proportional_split(population_reg_scores, percent_cutoff)
 
         if len(keys_above) == 0 and not use_best_guess:
             print(f"{regularised_scores=}")
@@ -368,7 +368,7 @@ def main():
 
         print(f"Best Reg Params: {best_reg_params}", flush=True)
         print(f"Unique Params Tested: {len(all_ids_and_diff_scores)}", flush=True)
-        print(f"Min Score: {min_diff_score} / {min_reg_score}", flush=True)
+        print(f"Min Score: {round(min_diff_score, 4)} / {round(min_reg_score, 4)}", flush=True)
 
         if hash_best_param in ids_and_ecgs_rts_params:
             # Then the new best reg params were found this iteration (so update all best values)
@@ -383,7 +383,7 @@ def main():
             best_apds = best_rts - activation_times_s * 1000  # Post smoothing
             alg.append(best_apds)
             alg.append(best_rts)
-            alg_utils2.save_alg_mesh(f"{run_dir}/{fast_download_folder}/best_reg_params_{iter_no}.alg", alg)
+            alg_utils.save_alg_mesh(f"{run_dir}/{fast_download_folder}/best_reg_params_{iter_no}.alg", alg)
             np.save(f"{run_dir}/{fast_download_folder}/best_leads_{iter_no}.npy", best_leads)
 
         runtime_end = time.time()
@@ -395,13 +395,13 @@ def main():
                                            population_ids, population_diff_scores, ids_and_ecgs_rts_params,
                                            population_reg_scores, population_params)
 
-        converged, i_iter_final = ecg2.runtime_stop_condn(iter_no, iter_median_reg_scores, window_size, stop_thresh)
+        converged, i_iter_final = ecg.runtime_stop_condn(iter_no, iter_median_reg_scores, window_size, stop_thresh)
         if converged:
             break
         # End of iteration loop
 
     if plot:
-        ecg2.plot_ecg([times_s, times_target_s],
+        ecg.plot_ecg([times_s, times_target_s],
                      [all_leads_sim[0], target_full_ecg_leads_normed],
                      colors=["red", "black"], labels=["Inferred", "Target"])
 

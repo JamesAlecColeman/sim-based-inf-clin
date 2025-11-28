@@ -1,8 +1,8 @@
 import numpy as np
-import utils2
+import utils
 import os
 from scipy.spatial.transform import Rotation as R
-import cache2
+import cache
 
 
 def read_alg_mesh(file_path):
@@ -23,14 +23,14 @@ def read_alg_mesh(file_path):
 
         # Process first line
         for i in range(len(alg)):
-            alg[i].append(utils2.safe_float(fields[i]))
+            alg[i].append(utils.safe_float(fields[i]))
 
         # Process the rest of the file
         for line in alg_file:
             fields = [f.strip() for f in line.split(",")]
 
             for i in range(len(alg)):
-                alg[i].append(utils2.safe_float(fields[i]))
+                alg[i].append(utils.safe_float(fields[i]))
 
     alg = [np.array(alg_entry) for alg_entry in alg]
 
@@ -230,7 +230,7 @@ def save_alg_mesh(path, alg, remove_old=True):
         os.makedirs(alg_dir)
 
     # Checking if file already exists
-    utils2.handle_preexisting_path(path, remove_old)
+    utils.handle_preexisting_path(path, remove_old)
 
     field_lengths = []
     # Checks for boolean arrays in the alg and converts them to int to avoid saving True/False in the .alg

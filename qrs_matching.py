@@ -1,7 +1,7 @@
 import numpy as np
-import ecg2
-import alg_utils2
-from constants2 import *
+import ecg
+import alg_utils
+from constants import *
 from itertools import islice
 from scipy.sparse.csgraph import dijkstra
 from scipy.sparse import csr_matrix
@@ -30,7 +30,7 @@ def mutate_activation_params(params, alg, grid_dict, candidate_root_node_indices
    Returns:
        params (tuple tuple): mutated activation model params (v_endo_param, v_myo_param), (root_idx1, ...)
     """
-    xs, ys, zs, *_ = alg_utils2.unpack_alg_geometry(alg)
+    xs, ys, zs, *_ = alg_utils.unpack_alg_geometry(alg)
     v_params, root_indices = params
     new_v_params, new_root_indices = v_params, list(root_indices).copy()
 
@@ -152,7 +152,7 @@ def analyse_sim_qrs_leads(all_electrodes, target_leads, times_sim, times_target,
     """
     all_diff_scores, all_leads_sim = {}, {}
     for key, electrodes in all_electrodes.items():
-        leads_pseudo = ecg2.ten_electrodes_to_twelve_leads(electrodes)
+        leads_pseudo = ecg.ten_electrodes_to_twelve_leads(electrodes)
         diff_score = discrepancy_function(leads_pseudo, target_leads)
         all_diff_scores[key] = round(diff_score, 5)
         all_leads_sim[key] = leads_pseudo
@@ -237,12 +237,12 @@ def pseudo_ecg_qrs(times_s, ap_function, electrodes_xyz, elec_grads, dx, activat
 
             calc_grad_at_idxs = all_idxs
             calc_grad_at_idxs = np.array(calc_grad_at_idxs, dtype=int)
-            grad = ecg2.calc_grads(np.array(vms), neighbour_arrays, dx, special_indices=calc_grad_at_idxs)
+            grad = ecg.calc_grads(np.array(vms), neighbour_arrays, dx, special_indices=calc_grad_at_idxs)
             grad_x, grad_y, grad_z = grad[:, 0], grad[:, 1], grad[:, 2]
             original_idxs = np.arange(0, len(grad), 1)
 
         else:  # Compute gradients for all cells
-            grad = ecg2.calc_grads(np.array(vms), neighbour_arrays, dx)
+            grad = ecg.calc_grads(np.array(vms), neighbour_arrays, dx)
             grad_x, grad_y, grad_z = grad[:, 0], grad[:, 1], grad[:, 2]
             original_idxs = np.arange(0, len(grad), 1)
 
@@ -550,7 +550,7 @@ def prepare_target_leads(leads_targ_in, iter_dt_s, qrs_safety_s):
     times_s = np.round(np.arange(0, total_time_s + iter_dt_s, iter_dt_s), decimals=6)
     times_s = times_s[times_s <= total_time_s]  # Prevent overstepping beyond total_time_s
 
-    times_target_s, leads_target = ecg2.match_times(times_target_s, leads_target, times_s)
+    times_target_s, leads_target = ecg.match_times(times_target_s, leads_target, times_s)
 
     return leads_target, times_target_s, times_s, total_time_s
 
@@ -705,7 +705,7 @@ def mesh_subset_with_dist_constraint(alg, dist_limit_um, neighbour_dist_um):
             points_neighbours (dict): neighbours of points_subset stored as key (x, y, z): [(x0, y0, z0), ...]
     """
     # TODO: KD-trees reimplementation
-    xs, ys, zs, *_ = alg_utils2.unpack_alg_geometry(alg)
+    xs, ys, zs, *_ = alg_utils.unpack_alg_geometry(alg)
     grid_coarse = {}
     neighbours = np.concatenate((np.array([(0, 0, 0)]), NEIGHBOURS_26))  # Include same cell at origin
     # grid_scale_um must always be >= dist_limit_um to ensure dist limit is properly enforced

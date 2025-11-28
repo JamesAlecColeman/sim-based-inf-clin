@@ -1,13 +1,13 @@
-import alg_utils2
-import ecg2
-import log_analysis_functions2 as laf2
+import alg_utils
+import ecg
+import log_analysis_functions as laf2
 import matplotlib.pyplot as plt
 import addcopyfighandler
 import os
-import compare_distributions2 as comp2
-from constants2 import *
+import compare_distributions as comp2
+from constants import *
 import random
-import qrs_matching2 as qrsm2
+import qrs_matching as qrsm2
 import math
 
 
@@ -54,7 +54,7 @@ def get_convergence_info(i_iter_final, repol, compare_to_truth, run_path, all_id
 
 
 def get_ground_truth(benchmark_alg_path, repol):
-    benchmark_alg = alg_utils2.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
+    benchmark_alg = alg_utils.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
     truth_apd90s_ms, truth_activations_s, truth_repols_ms = benchmark_alg[6], benchmark_alg[7], benchmark_alg[8]
     truth_activations_ms = truth_activations_s * 1000
     truth_times_ms = truth_activations_ms if not repol else truth_repols_ms
@@ -62,22 +62,22 @@ def get_ground_truth(benchmark_alg_path, repol):
 
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-glob_folder = "global_analysis_twave_validation_final_lambda100"
+glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_twave_validation_final_lambda100", 1, 1
-dataset_name = "simulated_truths"
-compare_to_truth, benchmarks_folder = True, "New_Benchmarks_APDs"
+inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_local", 1, 1
+dataset_name = "oxdataset"
+compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
 
 mesh_type = "ctrl"
 
-patient_id_select = "DTI1241"
+patient_id_select = "DTI024"
 run_id_select = None  #[f"run_512_0.0_0.0_calc_discrepancy_separate_scaling" for i in range(1)]
 
 patient_id_skip = None
-stop_thresh, force_iter_final = 0.00002, None
+stop_thresh, force_iter_final = 0.00002, 50
 
 #select_activation = ""  # reg tuners
-select_activation = "_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
+select_activation = "_run_64_0_0.0_calc_discrepancy_separate_scaling_0" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
 
 save_png = 1
 plot_ecgs = 1
@@ -238,7 +238,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         activation_ms = None
         if repol:  # Load activation times from mother dir
             #select_activation = run_id.split("_")[-1]  # When using angle
-            alg_activation = alg_utils2.read_alg_mesh(f"{mother_data_path}/{patient_id}_{coarse_dx}_activation_times{select_activation}.alg")
+            alg_activation = alg_utils.read_alg_mesh(f"{mother_data_path}/{patient_id}_{coarse_dx}_activation_times{select_activation}.alg")
             activation_s = alg_activation[-1]
             activation_ms = activation_s * 1000
             print(f"Run {run_id} using {patient_id}_{coarse_dx}_activation_times{select_activation}.alg as activation used")
@@ -311,8 +311,8 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
         # Note leads_target has all its original time points saved, not necessarily matched to leads_sim_best
         # So re-match time points
 
-        target_idxs = ecg2.match_sim_and_target_times(times_s, times_target_s)
-        target_qrs_idxs = ecg2.match_sim_and_target_times(times_qrs_s, times_target_s)
+        target_idxs = ecg.match_sim_and_target_times(times_s, times_target_s)
+        target_qrs_idxs = ecg.match_sim_and_target_times(times_qrs_s, times_target_s)
         leads_target_justcompare = {name: leads_target[name][target_idxs] for name in lead_names}
         leads_target_normed = {name: target_leads_normed[name][target_idxs] for name in lead_names}
 
@@ -405,7 +405,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
 
         if plot_ecgs:
-            ecg2.plot_ecg_clinical_style_testing([times_s, times_target_s[target_idxs]],
+            ecg.plot_ecg_clinical_style_testing([times_s, times_target_s[target_idxs]],
                          [fleads_sim_best_dual, plot_target],
                          xlims=[0, 0.45], colors=["red", "black"], fig_no=ecg_fig_no + 1,
                          title=f"{target}, {run_id}, {round(s_limb)}, {round(s_prec)}, {round(corr_final, 2)}", show=False,
@@ -449,10 +449,10 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
             if dataset_name == "oxdataset":
                 mesh_alg_name = f"{patient_id}_{coarse_dx}_fields.alg"
                 mesh_path = f"{main_dir}/Cache_oxdataset/out/{mesh_alg_name}"
-                alg = alg_utils2.read_alg_mesh(mesh_path)
+                alg = alg_utils.read_alg_mesh(mesh_path)
                 alg = alg[:6]
             elif dataset_name == "simulated_truths":
-                alg = alg_utils2.read_alg_mesh(f"{main_dir}/Meshes_{coarse_dx}/{patient_id}_{coarse_dx}.alg")
+                alg = alg_utils.read_alg_mesh(f"{main_dir}/Meshes_{coarse_dx}/{patient_id}_{coarse_dx}.alg")
 
             if repol:
                 np.save(f"{analysis_dir}/{patient_id}_{run_id}_leads_selected_qrs.npy", leads_selected_qrs)
@@ -465,15 +465,15 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 alg.append(final_times_ms)
                 alg.append(final_apd90s_ms)
                 #alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_repol_times.alg", alg)
-                alg_utils2.save_alg_mesh(f"{analysis_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
+                alg_utils.save_alg_mesh(f"{analysis_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
                 if glob_folder is not None:
-                    alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
+                    alg_utils.save_alg_mesh(f"{glob_pt_dir}/{benchmark_id}_repol_times_{run_id}.alg", alg)
 
                 alg = alg[:6]
                 alg.append(activation_ms)
-                alg_utils2.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
+                alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
                 if glob_folder is not None:
-                    alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
+                    alg_utils.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
 
                 np.save(f"{analysis_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(final_params, dtype=object))
                 if glob_folder is not None:
@@ -481,9 +481,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
             else:  # s conversion for activation
                 alg.append(final_times_ms / 1000)
-                alg_utils2.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
+                alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
                 if glob_folder is not None:
-                    alg_utils2.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
+                    alg_utils.save_alg_mesh(f"{glob_pt_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
                 np.save(f"{analysis_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))
                 if glob_folder is not None:
                     np.save(f"{glob_pt_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))
@@ -564,15 +564,4 @@ print(f"{all_t_corrs=}")
 print(f"{all_apd_corrs=}")
 
 plt.tight_layout()
-plt.show()
-
-sc = plt.scatter(s_limbs, s_precs, c=all_t_corrs, cmap='jet')
-plt.ylabel("Precordial optimal scaling factor")
-plt.xlabel("Limb optimal scaling factor")
-plt.colorbar(sc, label="activation spearman r")
-plt.show()
-
-plt.scatter(scores_out, all_t_corrs)
-plt.xlabel("QRS match score")
-plt.ylabel("activation spearman r")
 plt.show()

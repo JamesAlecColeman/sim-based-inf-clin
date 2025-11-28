@@ -1,76 +1,12 @@
-import utils2
+import utils
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import entropy
 from scipy.spatial.distance import cdist
 from collections import defaultdict
-
-
-def compute_kl_div(distr_a, distr_b, increment):
-
-    bins = np.arange(min(distr_a), max(distr_a) + increment, increment)
-
-    # Normalize histograms (to make them probability distributions)
-    p, _ = np.histogram(distr_a, bins=bins, density=True)
-    q, _ = np.histogram(distr_b, bins=bins, density=True)
-
-    epsilon = 1e-10
-
-    # Apply smoothing
-    p += epsilon
-    q += epsilon
-
-    # Renormalize to ensure they sum to 1
-    p /= p.sum()
-    q /= q.sum()
-
-    # Compute KL divergence
-    kl_div = entropy(p, q)
-    print(kl_div)
-
-
-def compute_ncc_with_coordinates(activation_inf_coarse, activation_truth_coarse, xs, ys, zs):
-    # Ensure input arrays and coordinate arrays have the same number of points
-    if len(activation_inf_coarse) != len(activation_truth_coarse) or len(xs) != len(ys) or len(xs) != len(zs):
-        raise ValueError("Input arrays and coordinates must have the same length")
-
-    # Stack the coordinates (xs, ys, zs) into a single (n_points, 3) array for easy manipulation
-    coords = np.vstack((xs, ys, zs)).T  # Shape: (n_points, 3)
-
-    # Normalize both activation arrays
-    activation_inf_coarse_norm = (activation_inf_coarse - np.mean(activation_inf_coarse)) / np.std(activation_inf_coarse)
-    activation_truth_coarse_norm = (activation_truth_coarse - np.mean(activation_truth_coarse)) / np.std(activation_truth_coarse)
-
-    # Compute the pairwise Euclidean distance between points in 3D space
-    dist_matrix = cdist(coords, coords, metric='euclidean')  # (n_points, n_points)
-
-    # Compute the distance weights (e.g., using an exponential decay function)
-    # You can adjust the decay factor (here we use a simple exp decay as an example)
-    distance_weights = np.exp(-dist_matrix)  # Adjust decay as needed for your data
-
-    # Initialize the numerator and denominator for the NCC formula
-    numerator = 0
-    denominator_inf = 0
-    denominator_truth = 0
-
-    # Compute the NCC using the distance matrix and the distance weights
-    for i in range(len(activation_inf_coarse)):
-        # Weighting the correlation by distance
-        # For each point i, calculate its weighted correlation with all other points
-        weight = distance_weights[i, :]
-
-        # Numerator and Denominator updates (sum across all other points)
-        numerator += np.sum(activation_inf_coarse_norm[i] * activation_truth_coarse_norm * weight)
-        denominator_inf += np.sum(activation_inf_coarse_norm[i] ** 2 * weight)
-        denominator_truth += np.sum(activation_truth_coarse_norm ** 2 * weight)
-
-    # Final NCC value
-    ncc_value = numerator / np.sqrt(denominator_inf * denominator_truth)
-
-    print(f"{ncc_value=}")
-
-    return ncc_value
+import compare_distributions as comp2
+import math
 
 
 def get_max_i_iter(benchmark_run_dir, prefix = "all_params_and_diff_scores"):
@@ -112,7 +48,7 @@ def get_iteration_nos(benchmark_run_dir, i_population_name="population_params_an
         log_every_x_iterations (int): Estimated logging frequency between saved iterations.
     """
     iterations = []
-    i_population_filenames = utils2.find_files(benchmark_run_dir, i_population_name)
+    i_population_filenames = utils.find_files(benchmark_run_dir, i_population_name)
     for filename in i_population_filenames:
         iterations.append(int(filename.split("_")[-1][:-4]))
     iterations.sort()
@@ -181,7 +117,7 @@ def get_scores(benchmark_run_dir, i_iter, i_population_name="population_params_a
     return min_diff_score, median_diff_score, best_params_diff, min_reg_score, median_reg_score, best_params_reg
 
 
-def apply_stop_condition(benchmark_run_dir, iterations, window_size=50, twave_diff_threshold=-0.0001,
+def apply_stop_condition(benchmark_run_dir, iterations, window_size=50, twave_diff_threshold=0.00002,
                          force_iter_final=None, plot=False,
                          i_population_name="population_params_and_diff_scores", repol=True):
     """Determine whether inference has converged based on stopping condition
@@ -238,18 +174,17 @@ def apply_stop_condition(benchmark_run_dir, iterations, window_size=50, twave_di
 
         #print(moving_avg)
 
-        if len(below_threshold_indices) == len(moving_avg):
-
+        if len(below_threshold_indices) == 0:
             raise Exception("Has not converged based on this threshold")
 
 
         i_iter_final = min(below_threshold_indices)
     else:
         i_iter_final = force_iter_final
+        abs_moving_avg = None
 
         if force_iter_final == "max":
             i_iter_final = np.max(iterations)
-            abs_moving_avg = None
 
     min_diff_score, median_diff_score, best_params_diff, min_reg_score, median_reg_score, best_params_reg = get_scores(benchmark_run_dir, i_iter_final, i_population_name=i_population_name, repol=repol)
 
@@ -384,3 +319,177 @@ def find_inference_runs(inferences_path):
             runs_in_targets[target] = target_folder_dir
 
     return targets_in_inf_folder, runs_in_targets
+
+
+def get_convergence_info(i_iter_final, repol, compare_to_truth, run_path, all_ids_and_diff_scores, x_best, iter_step,
+                         i_iter_start, activation_ms, truth_times_ms, truth_apd90s_ms):
+    # Find iteration-wise scores & comparisons to truths to plot convergence
+    iters, iter_scores, iter_median_corrs, iter_median_absdiffs = [], [], [], []
+    iter_median_corrs_apds, iter_median_absdiffs_apds = [], []
+    iter_best_x_params = []
+
+    corrs, mean_absdiffs, corrs_apds, mean_absdiffs_apds = None, None, None, None
+
+    for iter_no in range(i_iter_start, i_iter_final, iter_step):
+        best_x_times, best_x_reg_scores, best_x_leads, best_x_params, best_x_diffs = get_best_x_rts_or_ats(run_path, iter_no,
+                                                                                                  x_best,
+                                                                                                  all_ids_and_diff_scores,
+                                                                                                  repol=repol)
+        iter_best_x_params.append(best_x_params)
+
+        if compare_to_truth:
+            # Comparisons with ground truth for the best x solutions this iteration
+            corrs = [comp2.correlation(times, truth_times_ms) for times in best_x_times]
+            mean_absdiffs = [comp2.abs_diffs(times, truth_times_ms)[1] for times in best_x_times]
+
+        if repol:  # Calculate and compare APDs
+            best_x_apds = [repol_times - activation_ms for repol_times in best_x_times]
+            if compare_to_truth:
+                corrs_apds = [comp2.correlation(apds, truth_apd90s_ms) for apds in best_x_apds]
+                mean_absdiffs_apds = [comp2.abs_diffs(apds, truth_apd90s_ms)[1] for apds in best_x_apds]
+
+        # Store iteration-wise scores, correlations and absolute differences
+        iters.append(iter_no)
+        iter_scores.append(np.median(best_x_reg_scores))
+
+        if compare_to_truth:
+            iter_median_corrs.append(np.median(corrs))
+            iter_median_absdiffs.append(np.median(mean_absdiffs))
+
+            if repol:
+                iter_median_corrs_apds.append(np.median(corrs_apds))
+                iter_median_absdiffs_apds.append(np.median(mean_absdiffs_apds))
+    return (iters, iter_scores, iter_median_corrs, iter_median_absdiffs, iter_median_corrs_apds,
+            iter_median_absdiffs_apds, iter_best_x_params)
+
+
+def get_ground_truth(benchmark_alg_path, repol):
+    import alg_utils
+    benchmark_alg = alg_utils.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
+    truth_apd90s_ms, truth_activations_s, truth_repols_ms = benchmark_alg[6], benchmark_alg[7], benchmark_alg[8]
+    truth_activations_ms = truth_activations_s * 1000
+    truth_times_ms = truth_activations_ms if not repol else truth_repols_ms
+    return truth_times_ms, truth_apd90s_ms
+
+
+def analyse_inf_log(main_dir, inferences_folder, dataset_name, patient_id, target, run_id, stop_thresh,
+                    select_activation, coarse_dx, repol, save_analysis):
+    import alg_utils
+    inferences_path = f"{main_dir}/{inferences_folder}"
+    if save_analysis:
+        analysis_dir = f"{main_dir}/{inferences_folder}/analysis"
+        if not os.path.exists(analysis_dir):
+            os.makedirs(analysis_dir)
+
+    mother_data_path = f"{inferences_path}/{target}/mother_data"
+    mother_data_dir = list(os.listdir(mother_data_path))
+
+    activation_times_count = 0  # check how many activation times are in mother data for this target
+    for filename in mother_data_dir:
+        if "activation_times" in filename and filename[-4:] == ".alg":
+            activation_times_count += 1
+    print(f"{activation_times_count} activation files in mother data")
+
+    run_path = f"{inferences_path}/{target}/{run_id}"
+    print("=======================================================================================")
+    print(f"{target}/{run_id=}")
+
+    i_iter_maximum = get_max_i_iter(run_path, prefix="all_ids_and_diff_scores")
+    all_ids_and_diff_scores = np.load(f"{run_path}/all_ids_and_diff_scores_{i_iter_maximum}.npy", allow_pickle=True).item()
+    iterations, n_iterations, log_every_x_iterations = get_iteration_nos(run_path, i_population_name="ids_and_rts_and_ecgs")
+
+    # Application of stopping condition
+    (i_iter_final, min_diff_score, median_diff_score, best_params_reg, min_reg_score, median_reg_score,
+     abs_moving_avg) = apply_stop_condition(run_path, iterations, twave_diff_threshold=stop_thresh,
+                                                i_population_name="pop_ids_and_diffs/population_ids_and_diff_scores",
+                                                repol=repol, plot=0)
+    print(f"Stopped at iteration {i_iter_final} of {n_iterations} iterations")
+    print(f"min diff, reg scores = {float(min_diff_score)}, {float(min_reg_score)}")
+
+    final_pop = np.load(f"{run_path}/pop_ids_and_diffs/population_ids_and_diff_scores_{i_iter_final}.npy",
+                        allow_pickle=True)
+
+    final_pop_diffs = list(final_pop[1].values())
+    final_pop_regs = list(final_pop[2].values())
+
+    log_inf_params = np.load(f"{run_path}/log_inf_params.npy", allow_pickle=True).item()
+    n_tries = log_inf_params["n_tries"]
+    percent_cutoff = log_inf_params["percent_cutoff"]
+    n_solutions_to_cluster = int(math.floor(n_tries * (percent_cutoff / 100)))  # Remove latest mutation fraction
+
+    best_x_times_final_iter, best_x_reg_scores_final_iter, best_x_leads_final_iter, best_x_params_final_iter, best_x_diff_scores_final_iter = get_best_x_rts_or_ats(
+        run_path, i_iter_final, n_solutions_to_cluster, all_ids_and_diff_scores,
+        repol=repol)
+
+    representatives, labels, mean_reg_scores, n_clusters = comp2.solution_clusters(best_x_times_final_iter,
+                                                                                   best_x_reg_scores_final_iter)
+    cluster_id_lowest_score = min(mean_reg_scores, key=mean_reg_scores.get)
+    print(f"{n_clusters=}")
+
+    final_soln_idx_from_best_x_times_final_iter = None
+    for cluster_id, medoid_soln_idx in representatives.items():
+        soln = best_x_times_final_iter[medoid_soln_idx]
+
+        if cluster_id == cluster_id_lowest_score:
+            final_soln_idx_from_best_x_times_final_iter = medoid_soln_idx
+            final_times_ms = soln  # Takes medoid of best scoring cluster at final iteration
+
+    final_params = best_x_params_final_iter[final_soln_idx_from_best_x_times_final_iter]
+    leads_sim_best = best_x_leads_final_iter[final_soln_idx_from_best_x_times_final_iter]
+
+    activation_ms = None
+    if repol:  # Load activation times from mother dir
+        #select_activation = run_id.split("_")[-1]  # When using angle
+        alg_activation = alg_utils.read_alg_mesh(f"{mother_data_path}/{patient_id}_{coarse_dx}_activation_times{select_activation}.alg")
+        activation_s = alg_activation[-1]
+        activation_ms = activation_s * 1000
+        print(f"Run {run_id} using {patient_id}_{coarse_dx}_activation_times{select_activation}.alg as activation used")
+
+    # Prepare to plot final ECG match to target
+    times_s, times_target_s = np.load(f"{run_path}/times_s.npy"), np.load(f"{run_path}/times_target_s.npy")
+    leads_target = np.load(f"{run_path}/leads_target.npy", allow_pickle=True).item()
+
+    if repol:  #  QRS amplitudes need calculating specifically from the QRS subset of the target leads
+        leads_selected_qrs = np.load(f"{run_path}/leads_selected_qrs.npy", allow_pickle=True).item()
+
+    if repol:
+        final_apd90s_ms = final_times_ms - activation_ms
+
+    if save_analysis:
+        # Local analysis dir
+        np.save(f"{analysis_dir}/leads_sim_best_{patient_id}_{run_id}_{repol}.npy", leads_sim_best)
+        np.save(f"{analysis_dir}/times_s_{patient_id}_{run_id}_{repol}.npy", times_s)
+        np.save(f"{analysis_dir}/times_target_s_{patient_id}_{run_id}_{repol}.npy", times_target_s)
+        np.save(f"{analysis_dir}/leads_target_{patient_id}_{run_id}_{repol}.npy", leads_target)
+        np.save(f"{analysis_dir}/FINDIFF_{patient_id}_{run_id}_{repol}.npy", final_pop_diffs)
+
+        if repol:
+            np.save(f"{analysis_dir}/FINREG_{patient_id}_{run_id}.npy", final_pop_regs)
+
+        # Oxdataset alg
+        if dataset_name == "oxdataset":
+            mesh_alg_name = f"{patient_id}_{coarse_dx}_fields.alg"
+            mesh_path = f"{main_dir}/Cache_oxdataset/out/{mesh_alg_name}"
+            alg = alg_utils.read_alg_mesh(mesh_path)
+            alg = alg[:6]
+        elif dataset_name == "simulated_truths":
+            alg = alg_utils.read_alg_mesh(f"{main_dir}/Meshes_{coarse_dx}/{patient_id}_{coarse_dx}.alg")
+        else:
+            raise Exception(f"{dataset_name=}: oxdataset or simulated_truths?")
+
+        if repol:
+            np.save(f"{analysis_dir}/{patient_id}_{run_id}_leads_selected_qrs.npy", leads_selected_qrs)
+            alg.append(final_times_ms)
+            alg.append(final_apd90s_ms)
+            alg_utils.save_alg_mesh(f"{analysis_dir}/{target}_repol_times_{run_id}.alg", alg)
+
+            alg = alg[:6]
+            alg.append(activation_ms)
+            alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_actvn_used_{run_id}.alg", alg)
+
+            np.save(f"{analysis_dir}/{target}_besttwaveparams_{run_id}.npy", np.array(final_params, dtype=object))
+
+        else:  # s conversion for activation
+            alg.append(final_times_ms / 1000)
+            alg_utils.save_alg_mesh(f"{analysis_dir}/{patient_id}_{coarse_dx}_activation_times_{run_id}.alg", alg)
+            np.save(f"{analysis_dir}/{target}_bestqrsparams_{run_id}.npy", np.array(final_params, dtype=object))

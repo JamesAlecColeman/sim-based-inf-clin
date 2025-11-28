@@ -1,6 +1,6 @@
 import numpy as np
-from constants2 import *
-import utils2
+from constants import *
+import utils
 from collections import defaultdict
 import random
 import matplotlib.pyplot as plt
@@ -429,7 +429,7 @@ def precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays):
     elec_grad_zs = np.empty((n_elec, n_cells), dtype=np.float64)
 
     for i, elec in enumerate(electrodes_xyz):
-        rs_1over = 1 / np.sqrt(utils2.calc_dist_sq(xs, ys, zs, elec[0], elec[1], elec[2]))
+        rs_1over = 1 / np.sqrt(utils.calc_dist_sq(xs, ys, zs, elec[0], elec[1], elec[2]))
         elec_grads = calc_grads(rs_1over, neighbour_arrays, dx)
         elec_grad_xs[i, :], elec_grad_ys[i, :], elec_grad_zs[i, :] = elec_grads[:, 0], elec_grads[:, 1], elec_grads[:,
                                                                                                          2]

@@ -1,5 +1,5 @@
 import numpy as np
-import alg_utils2
+import alg_utils
 import os
 
 
@@ -26,7 +26,7 @@ def log_init_qrs(run_dir, log_inf_params, candidate_root_points, candidate_root_
     np.save(f"{run_dir}/times_s.npy", times_s)
     np.save(f"{run_dir}/log_inf_params.npy", log_inf_params)
     np.save(f"{run_dir}/log_inf_params.npy", log_inf_params)
-    alg_utils2.save_alg_mesh(f"{run_dir}/alg.alg", alg)
+    alg_utils.save_alg_mesh(f"{run_dir}/alg.alg", alg)
 
 
 def log_progress_qrs(run_dir, iter_no, log_every_x_iterations, runtimes, all_ids_and_diff_scores,
@@ -91,7 +91,7 @@ def log_init_twave(run_dir, log_inf_params, times_target_s, leads_target, alg, t
     np.save(f"{run_dir}/leads_target.npy", leads_target)
     np.save(f"{run_dir}/times_s.npy", times_s)
     np.save(f"{run_dir}/activation_times.npy", activation_times)
-    alg_utils2.save_alg_mesh(f"{run_dir}/alg.alg", alg)
+    alg_utils.save_alg_mesh(f"{run_dir}/alg.alg", alg)
 
 
 def log_progress_twave_perturb(run_dir, iter_no, log_every_x_iterations, runtimes, all_ids_and_diff_scores,

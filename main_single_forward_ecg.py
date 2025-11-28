@@ -1,18 +1,18 @@
-import qrs_matching2 as qrsm2
-import twave_matching2 as twm2
-import utils2
-import alg_utils2
+import qrs_matching as qrsm2
+import twave_matching as twm2
+import utils
+import alg_utils
 import numpy as np
-import cache2
-import ecg2
-from constants2 import *
-from smoothing2 import preprocessing_gaussian_smoothing_fourier
+import cache
+import ecg
+from constants import *
+from smoothing import preprocessing_gaussian_smoothing_fourier
 from scipy.sparse.csgraph import dijkstra
 import addcopyfighandler
 
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 dataset_name = "oxdataset"
-patient_id, dx = "DTI024", 2000
+patient_id, dx = "DTI7876_1", 2000
 
 glob_0 = "global_analysis_qrs_oxdataset_final_1024"  # Activation global folder
 glob_1 = "global_analysis_twave_oxdataset_final_actual_lambda200"  # Repolarisation global folder
@@ -23,28 +23,28 @@ misc_1 = "_reg_200.0_512_0.0_0.0_extended_floored_apexb_stopcondn_0"  # Repolari
 ap_table_name = "ap_table_2d_extended"
 min_possible_apd90_ms, max_possible_apd90_ms = 150, 450
 
-total_time_s = 0.600
-iter_dt_qrs_s, iter_dt_twave_s = 0.005, 0.005
+total_time_s = 0.510
+iter_dt_qrs_s, iter_dt_twave_s = 0.002, 0.002
 
 # Load fundamentals
 if dataset_name == "simulated_truths":
     # Load alg old
     seg_name = "rvseg"
     mesh_dir = f"{main_dir}/Meshes_{dx}"
-    mesh_filename = utils2.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
-    alg = alg_utils2.read_alg_mesh(f"{mesh_dir}/{mesh_filename}")
+    mesh_filename = utils.find_lvrv_thresh_used(mesh_dir, patient_id, dx, seg_name)
+    alg = alg_utils.read_alg_mesh(f"{mesh_dir}/{mesh_filename}")
     trans = alg[10]  # 0: endo, 1: epi
     apexb = alg[14]
     # Read from cache (old)
     cache_path = f"{main_dir}/Cache/{patient_id}_{dx}_cache.npy"
     mesh_info_dict = np.load(cache_path, allow_pickle=True).item()
     keys_to_read = ["electrodes_xyz"]
-    (electrodes_xyz,) = cache2.check_cache(mesh_info_dict, keys_to_read)
+    (electrodes_xyz,) = cache.check_cache(mesh_info_dict, keys_to_read)
 # Load alg oxdataset
 elif dataset_name == "oxdataset":
     mesh_alg_name = f"{patient_id}_{dx}_fields.alg"
     mesh_path = f"{main_dir}/Cache_Oxdataset/out/{mesh_alg_name}"
-    alg = alg_utils2.read_alg_mesh(mesh_path)
+    alg = alg_utils.read_alg_mesh(mesh_path)
     trans = alg[10]
     apexb = alg[12]
     # Read electrode posns (new)
@@ -55,18 +55,18 @@ elif dataset_name == "oxdataset":
     cache_path = f"{main_dir}/Cache_Oxdataset/{patient_id}_{dx}_cache.npy"
     mesh_info_dict = np.load(cache_path, allow_pickle=True).item()
 
-xs, ys, zs, *_ = alg_utils2.unpack_alg_geometry(alg)
+xs, ys, zs, *_ = alg_utils.unpack_alg_geometry(alg)
 
 # Preprocessing for pseudo ECG computation
-grid_dict = alg_utils2.make_grid_dictionary(xs, ys, zs)
-neighbour_arrays, neighbour_arrays2 = ecg2.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
-elec_grads = ecg2.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
+grid_dict = alg_utils.make_grid_dictionary(xs, ys, zs)
+neighbour_arrays, neighbour_arrays2 = ecg.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
+elec_grads = ecg.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
 neighbour_args = twm2.neighbour_arrays_to_args(neighbour_arrays, neighbour_arrays2)
-adjacency_list_26 = ecg2.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict, NEIGHBOURS_26)
+adjacency_list_26 = ecg.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict, NEIGHBOURS_26)
 adjacency_matrix = twm2.create_sparse_adjacency_distance(adjacency_list_26)
 
 # Retrieve activation model used
-activation_times_s = alg_utils2.read_alg_mesh(f"{main_dir}/{glob_0}/{patient_id}/0/{patient_id}_{dx}_activation_times{misc_0}.alg")[-1]
+activation_times_s = alg_utils.read_alg_mesh(f"{main_dir}/{glob_0}/{patient_id}/0/{patient_id}_{dx}_activation_times{misc_0}.alg")[-1]
 bestqrsparams = np.load(f"{main_dir}/{glob_0}/{patient_id}/0/{patient_id}_bestqrsparams{misc_0}.npy", allow_pickle=True)
 v_params = bestqrsparams[0]  # just needs velocities for pseudo ecg checks
 
@@ -111,7 +111,7 @@ n_qrs_idxs = len(times_qrs_s)
 all_vms = twm2.make_vms_field_2daptable(times_s, activation_times_s, besttwaveparams, ap_table_args,
                                         repol_args_2daptable, apd90_params)
 electrodes_vs, _ = twm2.pseudo_ecg(times_s, electrodes_xyz, elec_grads, dx, neighbour_args, all_vms)
-leads = ecg2.ten_electrodes_to_twelve_leads(electrodes_vs)
+leads = ecg.ten_electrodes_to_twelve_leads(electrodes_vs)
 
 # Scale by setting I amp to 1mV, V1 amp to 1mV (separate limb, precordial for clin. ECG plot)
 I_amp, V1_amp = np.max(leads["I"][:n_qrs_idxs]) - np.min(leads["I"][:n_qrs_idxs]), np.max(leads["V1"][:n_qrs_idxs]) - np.min(leads["V1"][:n_qrs_idxs])
@@ -119,12 +119,30 @@ leads_plot = {name: leads[name] / I_amp for name in LEAD_NAMES_LIMB_6}
 for name in LEAD_NAMES_PREC_6:
     leads_plot[name] = leads[name] / V1_amp
 
-ecg2.plot_ecg_clinical_style_testing([times_s], [leads_plot])
+ecg.plot_ecg_clinical_style_testing([times_s], [leads_plot])
 
 # Save all_vms somewhere
 print(f"{all_vms.shape=}")
 print(f"{times_s=}")
-np.save(f"{main_dir}/all_vms_test.npy", all_vms)
+save_dir = f"{main_dir}/all_vms_plotting"
+
+alg = alg[:6]
+for vms in all_vms:
+    alg.append(vms)
+
+alg_utils.save_alg_mesh(f"{save_dir}/{patient_id}_alg_vms.alg", alg)
+np.save(f"{save_dir}/{patient_id}_all_vms_test.npy", all_vms)
+
+lead_to_save = leads_plot["V5"]
+np.save(f"{save_dir}/{patient_id}_lead.npy", lead_to_save)
+
+idx_apex = np.argmin(activation_times_s)  #np.argmax(apexb)
+vms_apex = all_vms[:, idx_apex]
+np.save(f"{save_dir}/{patient_id}_vms_chosen.npy", vms_apex)
+
+import matplotlib.pyplot as plt
+plt.plot([i for i in range(len(vms_apex))], vms_apex)
+plt.show()
 
 # Example parameter sweep
 """
@@ -139,7 +157,7 @@ for ap_shape_param in ap_shapes:
     all_vms = twm2.make_vms_field_2daptable(times_s, activation_times_s, besttwaveparams, ap_table_args,
                                             repol_args_2daptable, apd90_params)
     electrodes_vs, _ = twm2.pseudo_ecg(times_s, electrodes_xyz, elec_grads, dx, neighbour_args, all_vms)
-    leads = ecg2.ten_electrodes_to_twelve_leads(electrodes_vs)
+    leads = ecg.ten_electrodes_to_twelve_leads(electrodes_vs)
 
     # Scale by setting I amp to 1mV, V1 amp to 1mV (separate limb, precordial for clin. ECG plot)
     I_amp, V1_amp = np.max(leads["I"][:n_qrs_idxs]) - np.min(leads["I"][:n_qrs_idxs]), np.max(leads["V1"][:n_qrs_idxs]) - np.min(leads["V1"][:n_qrs_idxs])
@@ -153,5 +171,5 @@ import matplotlib.pyplot as plt
 cmap = plt.cm.viridis  # or 'plasma', 'coolwarm', etc.
 colors = [cmap(ap_shape_param) for ap_shape_param in ap_shapes]
 
-ecg2.plot_ecg_clinical_style([times_s for _ in range(len(all_leads_plot))], all_leads_plot, colors=colors)
+ecg.plot_ecg_clinical_style([times_s for _ in range(len(all_leads_plot))], all_leads_plot, colors=colors)
 """

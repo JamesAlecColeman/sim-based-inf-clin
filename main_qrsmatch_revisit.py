@@ -1,27 +1,24 @@
 import sys
 
-running_on_arc = True
+running_on_arc = False
 
 if running_on_arc:
     scripts_dir = "/home/scat8499/monoscription_python/JAC_Py_Scripts"
     sys.path.append(scripts_dir)
 
-import alg_utils2
+import alg_utils
 import numpy as np
-import matplotlib.pyplot as plt
 import time
 import os
-import cache2
-from constants2 import *
-import log_inference2 as log2
-import qrs_matching2 as qrsm2
-import ecg2
+import cache
+from constants import *
+import log_inference as log2
+import qrs_matching as qrsm2
+import ecg
 import math
-import utils2
+import utils
 import concurrent.futures
 import random
-import compare_distributions2 as comp2
-from collections import Counter
 
 
 def main():
@@ -31,7 +28,7 @@ def main():
                  "stop_thresh", "random_seed"]
 
     if running_on_arc:  # Setup arguments as in ARC run
-        args = utils2.parse_args(arg_names)
+        args = utils.parse_args(arg_names)
         main_dir = "/data/coml-cardinal/scat8499/Monoscription"
 
         benchmark_id = args.benchmark_id
@@ -58,17 +55,17 @@ def main():
     else:  # Setup arguments as in local run
         import addcopyfighandler
         main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
-        dataset_name = "simulated_truths"
+        dataset_name = "oxdataset"
         patient_id, bench_dx = "DTI024", 500
-        inferences_folder = "Inferences_qrs_validation_local"
+        inferences_folder = "Inferences_qrs_oxdataset_local"
         stop_thresh = 0.00002
         random_seed = 0
 
         bench_type = "ctrl"
-        n_tries, n_processors, save_best_every_x = 64, 2, 1
+        n_tries, n_processors, save_best_every_x = 32, 2, 1
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []
-        discrepancy_name = "calc_discrepancy_shape_only_old"  # calc_discrepancy_separate_scaling for oxdataset
+        discrepancy_name = "calc_discrepancy_separate_scaling"  # calc_discrepancy_separate_scaling for oxdataset
 
         if dataset_name == "simulated_truths":
             benchmark_id = f"{patient_id}_{bench_dx}_{bench_type}" # monodomain ground truthsa
@@ -85,9 +82,6 @@ def main():
     v_endo_min, v_endo_max, v_endo_diff = 70, 190, 10  # possible v_endo range (cm/s)
     v_myo_min, v_myo_max, v_myo_diff = 20, 60, 10  # possible v_myo range (cm/s)
 
-    # TODO TODO DELETE; DEBUG:
-    #v_endo_min, v_endo_max, v_endo_diff = 100, 100, 10  # possible v_endo range (cm/s)
-    #v_myo_min, v_myo_max, v_myo_diff = 50, 50, 10  # possible v_myo range (cm/s)
 
     log_every_x_iterations = 1
     window_size = 50
@@ -104,31 +98,31 @@ def main():
         # Loading alg mesh and cached geometrical information
         mesh_alg_name = f"{patient_id}_{dx}{mesh_type}.alg"
         mesh_alg_path = f"{main_dir}/Meshes_{dx}/{mesh_alg_name}"
-        alg = alg_utils2.read_alg_mesh(mesh_alg_path)
-        xs, ys, zs, lxs, lys, lzs = alg_utils2.unpack_alg_geometry(alg)
-        dx = alg_utils2.get_dx(xs)
+        alg = alg_utils.read_alg_mesh(mesh_alg_path)
+        xs, ys, zs, lxs, lys, lzs = alg_utils.unpack_alg_geometry(alg)
+        dx = alg_utils.get_dx(xs)
         n_cells = len(xs)
         cache_path = f"{main_dir}/Cache/{patient_id}_{dx}_cache.npy"
         mesh_info_dict = np.load(cache_path, allow_pickle=True).item()
 
         # Read from cache: endo surface, plane and electrode positions
         keys_to_read = ["endo_labels", "labels_meaning", "electrodes_xyz"]
-        endo_labels, labels_meaning, electrodes_xyz = cache2.check_cache(mesh_info_dict, keys_to_read)
+        endo_labels, labels_meaning, electrodes_xyz = cache.check_cache(mesh_info_dict, keys_to_read)
         lv_val, rv_val = labels_meaning["lv"], labels_meaning["rv"]
         lv_endo_idxs, rv_endo_idxs = np.where(endo_labels[:n_cells] == lv_val)[0], np.where(endo_labels[:n_cells] == rv_val)[0]
         endo_mask = np.zeros(n_cells)
         endo_mask[lv_endo_idxs], endo_mask[rv_endo_idxs] = 1, 1
         endo_idxs = np.where(endo_mask == 1)[0]
         xs_endo, ys_endo, zs_endo = xs[endo_idxs], ys[endo_idxs], zs[endo_idxs]
-        alg_endo = alg_utils2.alg_from_xs(xs_endo, ys_endo, zs_endo)
+        alg_endo = alg_utils.alg_from_xs(xs_endo, ys_endo, zs_endo)
         target_clinical = False
         leads_targ_name = "leads_selected_qrs"
 
     elif dataset_name == "oxdataset":  # After oxdataset
         mesh_alg_name = f"{patient_id}_{dx}_fields.alg"
         mesh_path = f"{main_dir}/Cache_Oxdataset/out/{mesh_alg_name}"
-        alg = alg_utils2.read_alg_mesh(mesh_path)
-        xs, ys, zs, *_ = alg_utils2.unpack_alg_geometry(alg)
+        alg = alg_utils.read_alg_mesh(mesh_path)
+        xs, ys, zs, *_ = alg_utils.unpack_alg_geometry(alg)
         n_cells = len(xs)
         surface_info_field = alg[6]
         lv_endo_idxs, rv_endo_idxs = np.where(surface_info_field == 0)[0], np.where(surface_info_field == 1)[0]
@@ -136,7 +130,7 @@ def main():
         endo_mask[lv_endo_idxs], endo_mask[rv_endo_idxs] = 1, 1
         endo_idxs = np.where(endo_mask == 1)[0]
         xs_endo, ys_endo, zs_endo = xs[endo_idxs], ys[endo_idxs], zs[endo_idxs]
-        alg_endo = alg_utils2.alg_from_xs(xs_endo, ys_endo, zs_endo)
+        alg_endo = alg_utils.alg_from_xs(xs_endo, ys_endo, zs_endo)
         patient_final_mesh_infos = np.load(f"{main_dir}/CardiacPersonalizationStudyVtks/alg_outs_final_trimmed/patient_final_mesh_infos_w_electrodes.npy", allow_pickle=True).item()
         electrodes_xyz = patient_final_mesh_infos[patient_id][-1]
         cache_path = f"{main_dir}/Cache_Oxdataset/{patient_id}_{dx}_cache.npy"
@@ -197,19 +191,19 @@ def main():
 
     # TODO adapt for clinical axes / different axis method
     keys_to_read = ["basal_plane_axis", "lv_rv_vec_proj", "final_axis2"]
-    axis0, axis1, axis2 = cache2.check_cache(mesh_info_dict, keys_to_read)
+    axis0, axis1, axis2 = cache.check_cache(mesh_info_dict, keys_to_read)
     axes_dict = {"basal_plane_axis": axis0, "lv_rv_vec_proj": axis1, "final_axis2": axis2}
 
-    electrodes_xyz = alg_utils2.rotate_electrodes(electrodes_xyz, axis0, axis1, axis2, axes_dict[axis_name], run_dir,
+    electrodes_xyz = alg_utils.rotate_electrodes(electrodes_xyz, axis0, axis1, axis2, axes_dict[axis_name], run_dir,
                                                  angle_rot_deg, varying_angle, center_of_mass)
-    electrodes_xyz = alg_utils2.translate_electrodes(electrodes_xyz, elec_rad_translation_um, elec_idxs_to_translate,
+    electrodes_xyz = alg_utils.translate_electrodes(electrodes_xyz, elec_rad_translation_um, elec_idxs_to_translate,
                                                     center_of_mass, run_dir)
 
     # Preprocessing for pseudo ECG computation
-    grid_dict = alg_utils2.make_grid_dictionary(xs, ys, zs)
-    neighbour_arrays, *_ = ecg2.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
-    elec_grads = ecg2.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
-    grid_endo_dict = alg_utils2.make_grid_dictionary(xs_endo, ys_endo, zs_endo)
+    grid_dict = alg_utils.make_grid_dictionary(xs, ys, zs)
+    neighbour_arrays, *_ = ecg.get_neighbour_arrays(xs, ys, zs, dx, grid_dict)
+    elec_grads = ecg.precompute_elec_grads(xs, ys, zs, electrodes_xyz, dx, neighbour_arrays).astype(np.float32)
+    grid_endo_dict = alg_utils.make_grid_dictionary(xs_endo, ys_endo, zs_endo)
 
     root_nodes_neighbour_dist_um = 2 * root_nodes_dist_apart_um
     # Set up candidate root node parameter space
@@ -235,7 +229,7 @@ def main():
         v_endos, v_myos = [params_best_guess[0][0]], [params_best_guess[0][1]]  # Confine v_params to best guess params
 
     # Used for activation time calculations in dijkstra (need 26 to ensure isotropic propagation is possible)
-    adjacency_list_26 = ecg2.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict, NEIGHBOURS_26)  # Post-fibers version (displacement vectors for fib projections)
+    adjacency_list_26 = ecg.compute_adjacency_displacement(xs, ys, zs, dx, grid_dict, NEIGHBOURS_26)  # Post-fibers version (displacement vectors for fib projections)
 
     # Batch preparation of all all time matrices
     v_endos.sort()  # Sort v_params (ascending) as inc/decreasing v mutations relies on this
@@ -267,9 +261,6 @@ def main():
 
     mutated_params, all_ids_and_diff_scores = {}, {}
     runtimes, iter_median_scores = [], []
-
-    cluster_ct = []
-    iter_ct = []
 
     # Main iterative refinement of activation loop
     for iter_no in range(n_iterations):
@@ -333,7 +324,7 @@ def main():
         scores = list(population_diff_scores.values())
         iter_median_scores.append(np.median(scores))
 
-        keys_below, keys_above = ecg2.tie_aware_proportional_split(population_diff_scores, percent_cutoff)
+        keys_below, keys_above = ecg.tie_aware_proportional_split(population_diff_scores, percent_cutoff)
 
         mutated_params = qrsm2.mutate_pop_params(keys_above, keys_below, population_params, alg, grid_dict,
                                                  candidate_root_node_indices, candidate_root_neighbours, v_endos, v_myos,
@@ -392,7 +383,7 @@ def main():
         if iter_no % save_best_every_x == 0:
             alg = alg[:6]
             alg.append(best_ats)
-            alg_utils2.save_alg_mesh(f"{run_dir}/{fast_download_folder}/bestguess_best_params_{iter_no}.alg", alg)
+            alg_utils.save_alg_mesh(f"{run_dir}/{fast_download_folder}/bestguess_best_params_{iter_no}.alg", alg)
 
         runtimes.append(time.time() - runtime_start)
 
@@ -402,21 +393,10 @@ def main():
 
         print(f"Best Params: {min_key}", flush=True)
         print(f"Unique Params Tested: {len(all_ids_and_diff_scores)}", flush=True)
-        print(f"Min Score: {min_diff_score}", flush=True)
-
-        """
-        # Runtime solution clustering being investigated
-        pop_diffs = np.array(list(population_diff_scores.values()))
-        pop_ats = np.array(list(population_activation_times.values()))
-        representatives, labels, mean_reg_scores, n_clusters = comp2.solution_clusters(pop_ats, pop_diffs)
-        label_counts = Counter(labels)
-        cluster_sizes = {label: count for label, count in label_counts.items() if label != -1}
-        n_noise = label_counts.get(-1, 0)
-        print("Cluster sizes:", cluster_sizes)
-        print("Number of noise points:", n_noise)"""
+        print(f"Min Score: {round(min_diff_score, 4)}", flush=True)
 
 
-        converged, i_iter_final = ecg2.runtime_stop_condn(iter_no, iter_median_scores, window_size, stop_thresh)
+        converged, i_iter_final = ecg.runtime_stop_condn(iter_no, iter_median_scores, window_size, stop_thresh)
         if converged:
             break
         # End of iteration loop
@@ -424,7 +404,7 @@ def main():
     if plot:
         alpha = qrsm2.find_optimal_scaling(best_leads, leads_target)
         best_leads_rescaled = {name: best_leads[name] * alpha for name in lead_names}
-        ecg2.plot_ecg([times_s, times_target_s], [best_leads_rescaled, leads_target],
+        ecg.plot_ecg([times_s, times_target_s], [best_leads_rescaled, leads_target],
                      colors=["red", "black"], xlims=[0, 0.45])
 
 

@@ -1,14 +1,14 @@
 import os
 import shutil
 import numpy as np
-import utils2
+import utils
 import random
-from smoothing2 import gaussian_smoothing_fourier
+from smoothing import gaussian_smoothing_fourier
 import concurrent.futures
-import monoalg_output_analysis2 as moa2
-from constants2 import *
+import monoalg_output_analysis as moa2
+from constants import *
 import hashlib
-import ecg2
+import ecg
 import copy
 from scipy.sparse import csr_matrix
 
@@ -363,7 +363,7 @@ def get_diff_score(times_sim_s, leads_twave_sim, times_target_s, leads_target, l
     leads_twave_sim_rescaled = {name: leads_twave_sim[name] * lambda_scaling[name] for name in lead_names}
 
     # Find indices of the target times to compare each simulation time to
-    target_comparison_idxs = ecg2.match_sim_and_target_times(times_sim_s, times_target_s)
+    target_comparison_idxs = ecg.match_sim_and_target_times(times_sim_s, times_target_s)
 
     leads_twave_target = {name: leads_target[name][target_comparison_idxs] for name in lead_names}
 
@@ -392,7 +392,7 @@ def get_diff_score(times_sim_s, leads_twave_sim, times_target_s, leads_target, l
 
         """import ecg
         # Plot what is actually being compared
-        ecg2.plot_ecg([times_sim_s, times_sim_s], [leads_twave_sim_rescaled, leads_twave_target], show=True, colors=["red", "black"])
+        ecg.plot_ecg([times_sim_s, times_sim_s], [leads_twave_sim_rescaled, leads_twave_target], show=True, colors=["red", "black"])
         """
 
     else:
@@ -911,7 +911,7 @@ def monoalg_conductivity_to_smoothing_sigma(conductivity, use_grads=True):
     else:
         sigmas = best_sigmas_vms
 
-    sigma_interp = utils2.linear_interpolation_arrays(conductivities, sigmas, conductivity)
+    sigma_interp = utils.linear_interpolation_arrays(conductivities, sigmas, conductivity)
     return sigma_interp
 
 
@@ -934,7 +934,7 @@ def monoalg_cv_to_conductivity(cv_cm_per_s):
 
     cvs_cm_per_s = [0, np.float64(7.692307692307692), np.float64(15.527950310559007), np.float64(28.571428571428573), np.float64(39.37007874015748), np.float64(48.54368932038835), np.float64(56.81818181818182), np.float64(64.1025641025641), np.float64(70.42253521126761), np.float64(76.92307692307692), np.float64(81.9672131147541), np.float64(87.71929824561403), np.float64(92.5925925925926), np.float64(96.15384615384616)]
 
-    conductivity_interp = utils2.linear_interpolation_arrays(cvs_cm_per_s, conductivities, cv_cm_per_s)
+    conductivity_interp = utils.linear_interpolation_arrays(cvs_cm_per_s, conductivities, cv_cm_per_s)
     return conductivity_interp
 
 
