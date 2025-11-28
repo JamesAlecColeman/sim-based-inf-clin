@@ -11,24 +11,73 @@ import qrs_matching as qrsm2
 import math
 
 
+def get_convergence_info(i_iter_final, repol, compare_to_truth, run_path, all_ids_and_diff_scores, x_best, iter_step):
+    # Find iteration-wise scores & comparisons to truths to plot convergence
+    iters, iter_scores, iter_median_corrs, iter_median_absdiffs = [], [], [], []
+    iter_median_corrs_apds, iter_median_absdiffs_apds = [], []
+    iter_best_x_params = []
+
+    corrs, mean_absdiffs, corrs_apds, mean_absdiffs_apds = None, None, None, None
+
+    for iter_no in range(i_iter_start, i_iter_final, iter_step):
+        best_x_times, best_x_reg_scores, best_x_leads, best_x_params, best_x_diffs = laf2.get_best_x_rts_or_ats(run_path, iter_no,
+                                                                                                  x_best,
+                                                                                                  all_ids_and_diff_scores,
+                                                                                                  repol=repol)
+        iter_best_x_params.append(best_x_params)
+
+        if compare_to_truth:
+            # Comparisons with ground truth for the best x solutions this iteration
+            corrs = [comp2.correlation(times, truth_times_ms) for times in best_x_times]
+            mean_absdiffs = [comp2.abs_diffs(times, truth_times_ms)[1] for times in best_x_times]
+
+        if repol:  # Calculate and compare APDs
+            best_x_apds = [repol_times - activation_ms for repol_times in best_x_times]
+            if compare_to_truth:
+                corrs_apds = [comp2.correlation(apds, truth_apd90s_ms) for apds in best_x_apds]
+                mean_absdiffs_apds = [comp2.abs_diffs(apds, truth_apd90s_ms)[1] for apds in best_x_apds]
+
+        # Store iteration-wise scores, correlations and absolute differences
+        iters.append(iter_no)
+        iter_scores.append(np.median(best_x_reg_scores))
+
+        if compare_to_truth:
+            iter_median_corrs.append(np.median(corrs))
+            iter_median_absdiffs.append(np.median(mean_absdiffs))
+
+            if repol:
+                iter_median_corrs_apds.append(np.median(corrs_apds))
+                iter_median_absdiffs_apds.append(np.median(mean_absdiffs_apds))
+    return (iters, iter_scores, iter_median_corrs, iter_median_absdiffs, iter_median_corrs_apds,
+            iter_median_absdiffs_apds, iter_best_x_params)
+
+
+
+def get_ground_truth(benchmark_alg_path, repol):
+    benchmark_alg = alg_utils.read_alg_mesh(benchmark_alg_path)  # APD90s, activation times, repolarisation times
+    truth_apd90s_ms, truth_activations_s, truth_repols_ms = benchmark_alg[6], benchmark_alg[7], benchmark_alg[8]
+    truth_activations_ms = truth_activations_s * 1000
+    truth_times_ms = truth_activations_ms if not repol else truth_repols_ms
+    return truth_times_ms, truth_apd90s_ms
+
+
 main_dir = "C:/Users/jammanadmin/Documents/Monoscription"
 glob_folder = None
 
-inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_repeatability", 1, 1
+inferences_folder, repol, save_analysis = "Inferences_twave_oxdataset_local", 1, 1
 dataset_name = "oxdataset"
 compare_to_truth, benchmarks_folder = False, "New_Benchmarks_APDs"
 
 mesh_type = "ctrl"
 
-patient_id_select = "DTI69687"
+patient_id_select = "DTI024"
 run_id_select = None  #[f"run_512_0.0_0.0_calc_discrepancy_separate_scaling" for i in range(1)]
-run_id_select = ["reg_200.0_512_0.0_0.0_extended_floored_apexb_stopcondn_1"]
 
 patient_id_skip = None
-stop_thresh, force_iter_final = 0.00002, None
+stop_thresh, force_iter_final = 0.00002, 50
 
 #select_activation = ""  # reg tuners
-select_activation = "_run_1024_0.0_0.0_calc_discrepancy_separate_scaling_0" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
+select_activation = "_run_64_0_0.0_calc_discrepancy_separate_scaling_0" #"_runtime_512_0.0_12_0.0_leads_sep_limb_prec_scale"
 
 save_png = 1
 plot_ecgs = 1
@@ -116,7 +165,7 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
     truth_times_ms, truth_apd90s_ms = None, None
     if compare_to_truth:  # Load ground truth activation/repolarisation sequence for this target
         benchmark_alg_path = f"{main_dir}/{benchmarks_folder}/{patient_id}_{coarse_dx}_{mesh_type}_APDs.alg"
-        truth_times_ms, truth_apd90s_ms = laf2.get_ground_truth(benchmark_alg_path, repol)
+        truth_times_ms, truth_apd90s_ms = get_ground_truth(benchmark_alg_path, repol)
 
     activation_times_count = 0  # check how many activation times are in mother data for this target
     for filename in mother_data_dir:
@@ -196,11 +245,9 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
 
         # Changes in scores etc over iterations
         (iters, iter_scores, iter_median_corrs, iter_median_absdiffs, iter_median_corrs_apds,
-         iter_median_absdiffs_apds, iter_best_x_params) = laf2.get_convergence_info(i_iter_final, repol, compare_to_truth,
+         iter_median_absdiffs_apds, iter_best_x_params) = get_convergence_info(i_iter_final, repol, compare_to_truth,
                                                                                run_path, all_ids_and_diff_scores,
-                                                                               x_best, iter_step, i_iter_start,
-                                                                                    activation_ms, truth_times_ms, truth_apd90s_ms)
-
+                                                                               x_best, iter_step)
         # Same color for the same run
         color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
         n_colors = len(color_cycle)
@@ -304,11 +351,11 @@ for i_targ, target in enumerate(runs_in_targets.keys()):  # E.g. now in "Inferen
                 name: target_qrs_leads[name] / (target_qrs_amps["V1"] * units_2pt5uV_to_mV) if name in prec_leads else
                 target_qrs_leads[name] for name in target_qrs_leads}
 
-            target_qrs_amp_ratios = {name: target_qrs_amps[name] / target_qrs_amps["I"] for name in
-                               target_qrs_leads}
+        target_qrs_amp_ratios = {name: target_qrs_amps[name] / target_qrs_amps["I"] for name in
+                           target_qrs_leads}
 
-            leads_target_justcompare = {name: leads_target_justcompare[name] / (target_qrs_amps["I"] * units_2pt5uV_to_mV) if name in limb_leads else
-                                    leads_target_justcompare[name] / (target_qrs_amps["V1"] * units_2pt5uV_to_mV) for name in lead_names}
+        leads_target_justcompare = {name: leads_target_justcompare[name] / (target_qrs_amps["I"] * units_2pt5uV_to_mV) if name in limb_leads else
+                                leads_target_justcompare[name] / (target_qrs_amps["V1"] * units_2pt5uV_to_mV) for name in lead_names}
 
         sim_limb_qrs = {lead: leads_sim_best[lead][sim_qrs_idxs] for lead in limb_leads if lead in leads_sim_best}
         target_limb_qrs = {lead: target_qrs_leads[lead][target_qrs_idxs] for lead in limb_leads if lead in target_qrs_leads}
