@@ -1,4 +1,4 @@
-# sim-based-inf
+# sim-based-inf-clin
 This repository accompanies the manuscript in preparation "Distinct patterns of slow repolarisation underlie abnormal ECGs in hypertrophic cardiomyopathy"
 
 ## Overview
