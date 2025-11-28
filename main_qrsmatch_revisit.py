@@ -62,7 +62,7 @@ def main():
         random_seed = 0
 
         bench_type = "ctrl"
-        n_tries, n_processors, save_best_every_x = 32, 2, 1
+        n_tries, n_processors, save_best_every_x = 128, 2, 1
         angle_rot_deg, axis_name = 0, "lv_rv_vec_proj"
         elec_rad_translation_um, elec_idxs_to_translate = 0.0, []
         discrepancy_name = "calc_discrepancy_separate_scaling"  # calc_discrepancy_separate_scaling for oxdataset
